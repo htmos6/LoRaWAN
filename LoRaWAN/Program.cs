@@ -17,7 +17,7 @@ namespace LoRaWAN
 
             Gateway gateway = new Gateway(sslCertificate, sslPassword);
 
-            gateway.SendFramesToServer("127.0.0.1", 8080, "Hello, LoRaWAN Community!");
+            gateway.SendFramesToServer("127.0.0.1", 8080, "Hello, LoRaWAN Community!<EOF>");
         }
     }
 }
