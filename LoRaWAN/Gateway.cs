@@ -1,7 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Security;
 using System.Net.Sockets;
+using System.Security.Authentication;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -9,8 +12,39 @@ namespace LoRaWAN
 {
     public class Gateway
     {
-        TcpClient client;
-        NetworkStream stream;
+        private TcpClient client;
+        private SslStream sslStream;
+
+        readonly string sslCertificate;
+        readonly string sslPassword;
+
+
+        /// <summary>
+        /// Initializes a new instance of the Gateway class with SSL certificate and password.
+        /// </summary>
+        /// <param name="sslCertificate">The path to the SSL certificate file.</param>
+        /// <param name="sslPassword">The password for the SSL certificate.</param>
+        public Gateway(string sslCertificate, string sslPassword)
+        {
+            // Assign the provided SSL certificate path and password to the corresponding properties
+            this.sslCertificate = sslCertificate;
+            this.sslPassword = sslPassword;
+        }
+
+
+        /// <summary>
+        /// Callback method to handle certificate validation for SSL/TLS connections.
+        /// </summary>
+        /// <param name="sender">The object that raised the event.</param>
+        /// <param name="certificate">The certificate associated with the remote party.</param>
+        /// <param name="chain">The chain of certificate authorities associated with the remote certificate.</param>
+        /// <param name="sslPolicyErrors">The errors encountered when validating the remote certificate.</param>
+        /// <returns>True to indicate that the all certificates are accepted without validation.</returns>
+        static bool CertificateValidationCallback(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
+        {
+            // Accept all certificates without validation
+            return true; 
+        }
 
 
         /// <summary>
@@ -30,10 +64,19 @@ namespace LoRaWAN
                 client.Connect(ipAddress, port);
 
                 // Get the network stream associated with the TcpClient for communication through Stream instance
-                stream = client.GetStream();
+                NetworkStream stream = client.GetStream();
 
                 // Print a message indicating successful connection along with the server's endpoint
                 Console.WriteLine("Connected to server " + client.Client.RemoteEndPoint);
+
+                // Wrap the stream with SSL/TLS encryption
+                sslStream = new SslStream(stream, false, new RemoteCertificateValidationCallback(CertificateValidationCallback));
+
+                // Authenticate as client using SSL/TLS with the provided certificate and password
+                sslStream.AuthenticateAsClient(ipAddress, new X509Certificate2Collection(new X509Certificate2(sslCertificate, sslPassword)), SslProtocols.Tls, true);
+
+                // Print message indicating successful SSL/TLS handshake
+                Console.WriteLine("SSL/TLS handshake completed.");
 
                 // Return true to indicate successful connection
                 return true;
@@ -42,7 +85,7 @@ namespace LoRaWAN
             {
                 // Print an error message if connection attempt fails and return false
                 Console.WriteLine("Error connecting to server: " + ex.Message);
-
+                Console.ReadKey();
                 return false;
             }
         }
@@ -61,7 +104,7 @@ namespace LoRaWAN
                 byte[] buffer = Encoding.ASCII.GetBytes(message);
 
                 // Write the byte array (message) to the network stream
-                stream.Write(buffer, 0, buffer.Length);
+                sslStream.Write(buffer, 0, buffer.Length);
 
                 // Print a message indicating successful sending of the message
                 Console.WriteLine("Sent message: " + message);
@@ -91,7 +134,7 @@ namespace LoRaWAN
                 byte[] buffer = new byte[1024];
 
                 // Read data from the network stream into the buffer and store the number of bytes read
-                int bytesRead = stream.Read(buffer, 0, buffer.Length);
+                int bytesRead = sslStream.Read(buffer, 0, buffer.Length);
 
                 // Convert the received byte array to a string using ASCII encoding
                 string response = Encoding.ASCII.GetString(buffer, 0, bytesRead);
@@ -120,7 +163,7 @@ namespace LoRaWAN
             try
             {
                 // Close the network stream
-                stream.Close();
+                sslStream.Close();
 
                 // Close the TcpClient
                 client.Close();
