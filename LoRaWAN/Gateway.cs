@@ -154,6 +154,7 @@ namespace LoRaWAN
                     _ = this.ReceiveResponse();
                 }
 
+                Console.ReadKey();
                 // Disconnect from the server
                 DisconnectFromServer();
             }
