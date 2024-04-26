@@ -12,7 +12,10 @@ namespace LoRaWAN
     {
         static void Main()
         {
-            Gateway gateway = new Gateway();
+            string sslCertificate = "C:\\Users\\Legion\\projects\\LoRaWAN-Server\\LoRaWAN.pfx";
+            string sslPassword = "sTrongPassW1";
+
+            Gateway gateway = new Gateway(sslCertificate, sslPassword);
 
             gateway.SendFramesToServer("127.0.0.1", 8080, "Hello, LoRaWAN Community!");
         }
