@@ -101,10 +101,13 @@ namespace LoRaWAN
             try
             {
                 // Convert the message string into a byte array using ASCII encoding
-                byte[] buffer = Encoding.ASCII.GetBytes(message);
+                byte[] buffer = Encoding.UTF8.GetBytes(message);
 
                 // Write the byte array (message) to the network stream
-                sslStream.Write(buffer, 0, buffer.Length);
+                sslStream.Write(buffer);
+
+                // Sent the byte array (message) to server
+                sslStream.Flush();
 
                 // Print a message indicating successful sending of the message
                 Console.WriteLine("Sent message: " + message);
@@ -130,20 +133,42 @@ namespace LoRaWAN
         {
             try
             {
-                // Create a byte array to store the received data
-                byte[] buffer = new byte[1024];
+                // Create a byte array to store received data
+                byte[] buffer = new byte[2048];
 
-                // Read data from the network stream into the buffer and store the number of bytes read
-                int bytesRead = sslStream.Read(buffer, 0, buffer.Length);
+                // Initialize a StringBuilder to construct the received message
+                StringBuilder messageData = new StringBuilder();
 
-                // Convert the received byte array to a string using ASCII encoding
-                string response = Encoding.ASCII.GetString(buffer, 0, bytesRead);
+                int bytesRead = -1;
 
-                // Print a message indicating the received response
-                Console.WriteLine("Received response: " + response);
+                do
+                {
+                    // Read data from the network stream and store the number of bytes read
+                    bytesRead = sslStream.Read(buffer, 0, buffer.Length);
 
-                // Return the received response
-                return response;
+                    // Create a UTF-8 decoder
+                    Decoder decoder = Encoding.UTF8.GetDecoder();
+
+                    // Decode bytes to characters
+                    char[] chars = new char[decoder.GetCharCount(buffer, 0, bytesRead)];
+                    decoder.GetChars(buffer, 0, bytesRead, chars, 0);
+
+                    // Append decoded characters to the messageData StringBuilder
+                    messageData.Append(chars);
+
+                    // Check for end-of-file indicator
+                    if (messageData.ToString().IndexOf("<EOF>") != -1)
+                    {
+                        // Exit loop if end-of-file indicator is found
+                        break;
+                    }
+                } while (bytesRead != 0); // Continue looping until no more data is read
+
+                // Print received response
+                Console.WriteLine("Received response: " + messageData.ToString());
+
+                // Return received response
+                return messageData.ToString();
             }
             catch (Exception ex)
             {
