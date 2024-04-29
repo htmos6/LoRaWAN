@@ -192,11 +192,8 @@ namespace LoRaWAN
             // Sets the RFM module's communication channel to channel 0 using the ChangeChannel function.
             ChangeChannel((byte)RFM_CHANNELS.CH0);
 
-            // Set default power to maximum for US915 region
-            // Set the default output pin as PA_BOOST
-            // RFM_Set_Tx_Power(20, PA_BOOST_PIN);
-            // These lines are commented out but suggest setting the RFM module's default transmission power 
-            // to the maximum for the US915 region and configuring the output pin as PA_BOOST.
+            // Set default power to maximum for EU868 region
+            SetTxPower(20);
 
             // Switch LNA boost on
             // Activates the Low-Noise Amplifier (LNA) boost by writing a specific value to the RFM module's LNA register.
