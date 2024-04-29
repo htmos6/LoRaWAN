@@ -8,6 +8,7 @@ using System.Linq;
 using System.Reflection.Emit;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using static System.Net.Mime.MediaTypeNames;
 
@@ -16,6 +17,7 @@ using static System.Net.Mime.MediaTypeNames;
 // Code refactored according to it.
 namespace LoRaWAN
 {
+    #region RFM_MODES
     /// <summary>
     /// Represents modes for RFM (Radio Frequency Module) communication.
     /// </summary>
@@ -38,8 +40,9 @@ namespace LoRaWAN
         // In this mode, the RFM module is configured to transmit data packets.
         MODE_TX = (byte)0x83,
     }
+    #endregion
 
-
+    #region RFM_CHANNELS
     /// <summary>
     /// Represents channels for RFM communication.
     /// </summary>
@@ -55,8 +58,9 @@ namespace LoRaWAN
         CH7,
         MULTI,
     }
+    #endregion
 
-
+    #region RFM_DATARATES
     /// <summary>
     /// Represents data rates for RFM communication, with predefined values dependent on the region.
     /// The rates provided below adhere to EU region standards.
@@ -73,8 +77,9 @@ namespace LoRaWAN
         SF11BW125,          // Spreading Factor 11, Bandwidth 125 kHz (440 bits/sec)
         SF12BW125,          // Spreading Factor 12, Bandwidth 125 kHz (250 bits/sec)
     }
+    #endregion
 
-
+    #region RFM_REGISTERS
     /// <summary>
     /// Represents registers for RFM (Radio Frequency Module) communication.
     /// </summary>
@@ -83,6 +88,9 @@ namespace LoRaWAN
     /// </remarks>
     public enum RFM_REGISTERS : byte
     {
+        // Register for configuring the mode of the RFM (Radio Frequency Module).
+        REG_RFM_MODE = (byte)0x01,
+
         // Register for controlling PA (Power Amplifier) selection and output power.
         REG_PA_CONFIG = (byte)0x09,
 
@@ -116,27 +124,157 @@ namespace LoRaWAN
         // Register for storing the RFM9x version information.
         REG_VER = (byte)0x42,
     }
+#endregion
 
 
     public class LoRa
     {
+        public delegate void ISR(int num);
 
-        private UInt16 spreadingFactor;
-        private UInt16 bandWidth;
-        private UInt16 modemConfiguration;
+        public byte[] deviceAddress = new byte[4];
+
+        private byte[] RfmRegister = new byte[256];
+
+        private byte spreadingFactor;
+        private byte bandWidth;
+        private byte modemConfiguration;
 
         private byte rfmFrequencyLSB;
         private byte rfmFrequencyMID;
         private byte rfmFrequencyMSB;
 
-        private bool isMultiChannel;
+        private int randomTransmissionChannelId;
 
-        public delegate void ISR(int num);
+        private bool isMultiChannel;
         public UInt16 transmissionAESCryptNumber { get; set; }
         public UInt16 frameCounter { get; set; }
 
+        public void SendData(byte[] data, byte dataLength, UInt32 transmissionFrameCounter, byte framePort)
+        {
+            // Direction of frame is up
+            byte direction = 0x00;
+
+            byte[] MIC = new byte[4];
+            byte[] rfmData = new byte[64];
+
+            byte rfmPackageLength;
+
+            // Unconfirmed data up
+            byte macHeader = 0x40;
+
+            byte frameControl = 0x00;
+
+            byte[] temporaryData = new byte[dataLength];
+            temporaryData.CopyTo(data, 0);
+
+            /// EncryptPayload
+
+            // Build the Radio Package
+            rfmData[0] = macHeader;
+            rfmData[1] = deviceAddress[3];
+            rfmData[2] = deviceAddress[2];
+            rfmData[3] = deviceAddress[1];
+            rfmData[4] = deviceAddress[0];
+            rfmData[5] = frameControl;
+            rfmData[6] = (byte)(transmissionFrameCounter & 0x00FF);
+            rfmData[7] = (byte)((transmissionFrameCounter >> 8) & 0x00FF);
+            rfmData[8] = framePort;
+
+            // Set Current package length
+            rfmPackageLength = 9;
+
+            // Start storing temporaryData elements from index = rfmPackageLength
+            // temporaryData.length = data.length = dataLength
+            // Copy temporaryData[0,dataLength) elements to end of the rfmData[rfmPackageLength,..)
+            Array.Copy(temporaryData, 0, rfmData, rfmPackageLength, dataLength);
+
+            // Add data Lenth to package length
+            rfmPackageLength += dataLength;
+
+            /// Calculate MIC
 
 
+
+            rfmPackageLength += 4;
+
+            // Send Package
+            RfmSendPackage(rfmData, rfmPackageLength);
+        }
+
+        /// <summary>
+        /// Writes data to the specified RFM register.
+        /// </summary>
+        /// <param name="RfmAddress">The address of the register to be written.</param>
+        /// <param name="RfmData">The data to be written to the register.</param>
+        private void RfmRegisterWrite(byte RfmAddress, byte RfmData)
+        {
+            RfmRegister[RfmAddress] = RfmData;
+
+            // SendData to Gateway
+        }
+
+        /// <summary>
+        /// Reads data from the specified RFM register.
+        /// </summary>
+        /// <param name="RfmAddress">The address of the register to be read.</param>
+        /// <returns>The data read from the register.</returns>
+        private byte RfmRegisterRead(byte RfmAddress)
+        {
+            return RfmRegister[RfmAddress];
+        }
+
+        /// <summary>
+        /// Sends a package using the RFM module.
+        /// </summary>
+        /// <param name="RfmPackage">The package to be sent.</param>
+        /// <param name="RfmPackageLength">The length of the package.</param>
+        private void RfmSendPackage(byte[] RfmPackage, byte rfmPackageLength)
+        {
+            // Set RFM in Standby mode and wait for mode readiness
+            RfmRegisterWrite((byte)RFM_REGISTERS.REG_RFM_MODE, (byte)RFM_MODES.MODE_STDBY);
+
+            // Wait for standby mode for 5 seconds
+            Thread.Sleep(5000);
+
+            // Deactivate interrupt method, inform transmission completion, and run normally
+
+            // Select RFM channel
+            if (isMultiChannel == true)
+            {
+                RfmRegisterWrite((byte)RFM_REGISTERS.REG_FRF_MSB, RegionalFrequencyPlan[randomTransmissionChannelId, 0]);
+                RfmRegisterWrite((byte)RFM_REGISTERS.REG_FRF_MID, RegionalFrequencyPlan[randomTransmissionChannelId, 1]);
+                RfmRegisterWrite((byte)RFM_REGISTERS.REG_FRF_LSB, RegionalFrequencyPlan[randomTransmissionChannelId, 2]);
+            }
+            else
+            {
+                RfmRegisterWrite((byte)RFM_REGISTERS.REG_FRF_MSB, rfmFrequencyMSB);
+                RfmRegisterWrite((byte)RFM_REGISTERS.REG_FRF_MID, rfmFrequencyMID);
+                RfmRegisterWrite((byte)RFM_REGISTERS.REG_FRF_LSB, rfmFrequencyLSB);
+            }
+
+            // Configure RFM settings
+            RfmRegisterWrite((byte)RFM_REGISTERS.REG_FEI_LSB, spreadingFactor);
+            RfmRegisterWrite((byte)RFM_REGISTERS.REG_FEI_MSB, bandWidth);
+            RfmRegisterWrite((byte)RFM_REGISTERS.REG_MODEM_CONFIG, modemConfiguration);
+
+            // Write payload to FIFO
+            foreach (byte data in RfmPackage)
+            {
+                RfmRegisterWrite(0x00, data);
+            }
+
+            // Switch RFM to Tx
+            RfmRegisterWrite((byte)RFM_REGISTERS.REG_RFM_MODE, (byte)RFM_MODES.MODE_TX);
+
+            // Wait till all transmissions are completed
+
+            // Switch RFM to Sleep
+            RfmRegisterWrite((byte)RFM_REGISTERS.REG_RFM_MODE, (byte)RFM_MODES.MODE_SLEEP);
+        }
+
+
+
+        #region SetDataRate
         /// <summary>
         /// Sets the data rate for RFM (Radio Frequency Module) communication.
         /// </summary>
@@ -150,72 +288,73 @@ namespace LoRaWAN
             {
                 case RFM_DATARATES.SF7BW125:
                 {
-                    spreadingFactor = (UInt16)0x74; // Spreading Factor 7
-                    bandWidth = (UInt16)0x72;       // Bandwidth 125 kHz
-                    modemConfiguration = (UInt16)0x04;
+                    spreadingFactor = (byte)0x74; // Spreading Factor 7
+                    bandWidth = (byte)0x72;       // Bandwidth 125 kHz
+                    modemConfiguration = (byte)0x04;
 
                     break;
                 }
                 case RFM_DATARATES.SF7BW250:
                 {
-                    spreadingFactor = (UInt16)0x74; // Spreading Factor 7
-                    bandWidth = (UInt16)0x82;       // Bandwidth 250 kHz
-                    modemConfiguration = (UInt16)0x04;
+                    spreadingFactor = (byte)0x74; // Spreading Factor 7
+                    bandWidth = (byte)0x82;       // Bandwidth 250 kHz
+                    modemConfiguration = (byte)0x04;
 
                     break;
                 }
                 case RFM_DATARATES.SF8BW125:
                 {
-                    spreadingFactor = (UInt16)0x84; // Spreading Factor 8
-                    bandWidth = (UInt16)0x72;       // Bandwidth 125 kHz
-                    modemConfiguration = (UInt16)0x04;
+                    spreadingFactor = (byte)0x84; // Spreading Factor 8
+                    bandWidth = (byte)0x72;       // Bandwidth 125 kHz
+                    modemConfiguration = (byte)0x04;
 
                     break;
                 }
                 case RFM_DATARATES.SF9BW125:
                 {
-                    spreadingFactor = (UInt16)0x94; // Spreading Factor 9
-                    bandWidth = (UInt16)0x72;       // Bandwidth 125 kHz
-                    modemConfiguration = (UInt16)0x04;
+                    spreadingFactor = (byte)0x94; // Spreading Factor 9
+                    bandWidth = (byte)0x72;       // Bandwidth 125 kHz
+                    modemConfiguration = (byte)0x04;
 
                     break;
                 }
                 case RFM_DATARATES.SF10BW125:
                 {
-                    spreadingFactor = (UInt16)0xA4; // Spreading Factor 10
-                    bandWidth = (UInt16)0x72;       // Bandwidth 125 kHz
-                    modemConfiguration = (UInt16)0x04;
+                    spreadingFactor = (byte)0xA4; // Spreading Factor 10
+                    bandWidth = (byte)0x72;       // Bandwidth 125 kHz
+                    modemConfiguration = (byte)0x04;
 
                     break;
                 }
                 case RFM_DATARATES.SF11BW125:
                 {
-                    spreadingFactor = (UInt16)0xB4; // Spreading Factor 11
-                    bandWidth = (UInt16)0x72;       // Bandwidth 125 kHz
-                    modemConfiguration = (UInt16)0x0C;
+                    spreadingFactor = (byte)0xB4; // Spreading Factor 11
+                    bandWidth = (byte)0x72;       // Bandwidth 125 kHz
+                    modemConfiguration = (byte)0x0C;
 
                     break;
                 }
                 case RFM_DATARATES.SF12BW125:
                 {
-                    spreadingFactor = (UInt16)0xC4; // Spreading Factor 12
-                    bandWidth = (UInt16)0x72;       // Bandwidth 125 kHz
-                    modemConfiguration = (UInt16)0x0C;
+                    spreadingFactor = (byte)0xC4; // Spreading Factor 12
+                    bandWidth = (byte)0x72;       // Bandwidth 125 kHz
+                    modemConfiguration = (byte)0x0C;
 
                     break;
                 }
                 default:
                 {
-                    spreadingFactor = (UInt16)0x74; // Default: SF7, BW125
-                    bandWidth = (UInt16)0x72;
-                    modemConfiguration = (UInt16)0x04;
+                    spreadingFactor = (byte)0x74; // Default: SF7, BW125
+                    bandWidth = (byte)0x72;
+                    modemConfiguration = (byte)0x04;
 
                     break;
                 }
             }
         }
+        #endregion
 
-
+        #region SetChannel
         /// <summary>
         /// Sets the channel for RFM (Radio Frequency Module) communication.
         /// </summary>
@@ -314,19 +453,18 @@ namespace LoRaWAN
                 }
             }
         }
+        #endregion
 
 
-
-
-        /*
-        public LoRa(int8_t rfm_dio0, int8_t rfm_nss, int8_t rfm_rst)
+        
+        public LoRa()
         {
-
+            // Generate number between [0,7]
+            Random rnd = new Random();
+            randomTransmissionChannelId = rnd.Next(8);
         }
 
-
-
-        public void Start();
+        /*
         public void SetPower(Int16 transmissionPower = 17);
 
         // Lorawan message types used to transmit application data or MAC commands. 
@@ -340,18 +478,12 @@ namespace LoRaWAN
         // 224	       LoRaWAN MAC layer test protocol
         // 255	       Reserved for Future Use(RFU)
         public void SendData(unsigned char* Data, unsigned char Data_Length, unsigned int Frame_Counter_Tx, uint8_t Frame_Port = 1);
-
-
-
-        uint8_t randomNum;
-        int8_t _cs, _irq, _rst;
-        bool _isMultiChan;
-        unsigned char _rfmMSB, _rfmMID, _rfmLSB;
          */
 
         // Determine signal bandwith and data rate in
 
 
+        #region RegionalFrequencyPlan
         /// <summary>
         /// Represents the regional frequency plan for RFM (Radio Frequency Module) communication.
         /// </summary>
@@ -373,8 +505,9 @@ namespace LoRaWAN
             {0xE2, 0x46,0x8C},  // Channel 6 905.100 MHz / 61.035 Hz = 14829196 = 0xE2468C
             {0xE2, 0x53, 0x59}  // Channel 7 905.300 MHz / 61.035 Hz = 14832473 = 0xE25359
         };
+        #endregion
 
-
+        #region AESSubstitutionTable
         /// <summary>
         /// Represents the cryptography substitution table for AES (Advanced Encryption Standard) algorithm.
         /// </summary>
@@ -402,7 +535,7 @@ namespace LoRaWAN
             {0xE1, 0xF8, 0x98, 0x11, 0x69, 0xD9, 0x8E, 0x94, 0x9B, 0x1E, 0x87, 0xE9,0xCE, 0x55, 0x28, 0xDF},
             {0x8C, 0xA1, 0x89, 0x0D, 0xBF, 0xE6, 0x42, 0x68, 0x41, 0x99, 0x2D, 0x0F,0xB0, 0x54, 0xBB, 0x16}
         };
-
+        #endregion
     }
 
 }
