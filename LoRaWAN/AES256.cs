@@ -101,6 +101,7 @@ namespace LoRaWAN
                     cryptoStream.Write(data, 0, data.Length);
                     cryptoStream.FlushFinalBlock();
                 }
+
                 // Return the transformed data as a byte array.
                 return ms.ToArray();
             }
