@@ -1,12 +1,33 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
+using System.Runtime.ConstrainedExecution;
+using System.Runtime.Remoting.Channels;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace LoRaWAN
 {
+    #region RFM_CHANNELS
+    /// <summary>
+    /// Represents channels for RFM communication.
+    /// </summary>
+    public enum RFM_CHANNELS : Int16
+    {
+        CH0 = 0,
+        CH1,
+        CH2,
+        CH3,
+        CH4,
+        CH5,
+        CH6,
+        CH7,
+        MULTI,
+    }
+    #endregion
 
     #region RFM_REGISTERS
     /// <summary>
@@ -17,76 +38,76 @@ namespace LoRaWAN
     /// </remarks>
     public enum RFM_REGISTERS : byte
     {
-        // FIFO register. Used for FIFO operations.
+        /// <summary> FIFO register. Used for FIFO operations.</summary>
         RFM_REG_FIFO = 0x00,
 
-        // Register for configuring the mode of the RFM (Radio Frequency Module).
+        /// <summary> Register for configuring the mode of the RFM (Radio Frequency Module).</summary>
         RFM_REG_OP_MODE = 0x01,
 
-        // Most significant byte of the frequency setting register.
+        /// <summary> Most significant byte of the frequency setting register.</summary>
         RFM_REG_FR_MSB = 0x06,
 
-        // Middle byte of the frequency setting register.
+        /// <summary> Middle byte of the frequency setting register.</summary>
         RFM_REG_FR_MID = 0x07,
 
-        // Least significant byte of the frequency setting register.
+        /// <summary> Least significant byte of the frequency setting register.</summary>
         RFM_REG_FR_LSB = 0x08,
 
-        // Over current protection control register.
+        /// <summary> Over current protection control register.</summary>
         RFM_REG_OCP = 0x0b,
 
-        // Power amplifier configuration register.
+        /// <summary> Power amplifier configuration register.</summary>
         RFM_REG_PA_CONFIG = 0x09,
 
-        // Low noise amplifier settings register.
+        /// <summary> Low noise amplifier settings register.</summary>
         RFM_REG_LNA = 0x0C,
 
-        // FIFO address pointer register.
+        /// <summary> FIFO address pointer register.</summary>
         RFM_REG_FIFO_ADDR_PTR = 0x0D,
 
-        // Interrupt flags register.
+        /// <summary> Interrupt flags register.</summary>
         RFM_REG_IRQ_FLAGS = 0x12,
 
-        // RSSI (Received Signal Strength Indicator) value of the last received packet.
+        /// <summary> RSSI (Received Signal Strength Indicator) value of the last received packet.</summary>
         RFM_REG_LAST_RSSI = 0x1A,
 
-        // Modem configuration register 1.
+        /// <summary> Modem configuration register 1.</summary>
         RFM_REG_MODEM_CONFIG1 = 0x1D,
 
-        // Modem configuration register 2.
+        /// <summary> Modem configuration register 2.</summary>
         RFM_REG_MODEM_CONFIG2 = 0x1E,
 
-        // Symbol timeout register.
+        /// <summary> Symbol timeout register.</summary>
         RFM_REG_SYM_TIMEOUT_LSB = 0x1F,
 
-        // Most significant byte of the preamble length register.
+        /// <summary> Most significant byte of the preamble length register.</summary>
         RFM_REG_PREAMBLE_MSB = 0x20,
 
-        // Least significant byte of the preamble length register.
+        /// <summary> Least significant byte of the preamble length register.</summary>
         RFM_REG_PREAMBLE_LSB = 0x21,
 
-        // Payload length register.
+        /// <summary> Payload length register.</summary>
         RFM_REG_PAYLOAD_LENGTH = 0x22,
 
-        // Modem configuration register 3.
+        /// <summary> Modem configuration register 3.</summary>
         RFM_REG_MODEM_CONFIG3 = 0x26,
 
-        // IQ polarity inversion register.
+        /// <summary> IQ polarity inversion register.</summary>
         RFM_REG_INVERT_IQ = 0x33,
 
-        // IQ polarity inversion register 2.
+        /// <summary> IQ polarity inversion register 2.</summary>
         RFM_REG_INVERT_IQ2 = 0x3b,
 
-        // Sync word register.
+        /// <summary> Sync word register.</summary>
         RFM_REG_SYNC_WORD = 0x39,
 
-        // Digital I/O mapping register 1.
+        /// <summary> Digital I/O mapping register 1.</summary>
         RFM_REG_DIO_MAPPING1 = 0x40,
 
-        // Digital I/O mapping register 2.
+        /// <summary> Digital I/O mapping register 2.</summary>
         RFM_REG_DIO_MAPPING2 = 0x41,
 
-        // Power amplifier DAC (Digital-to-Analog Converter) register.
+        /// <summary> Power amplifier DAC (Digital-to-Analog Converter) register.</summary>
         RFM_REG_PA_DAC = 0x4d
     }
     #endregion
@@ -100,42 +121,224 @@ namespace LoRaWAN
     /// </remarks>
     public enum RFM_MODES : byte
     {
-        // Indicates the sleep mode of the RFM module.
+        /// <summary> Indicates the sleep mode of the RFM module.</summary>
         RFM_MODE_SLEEP = 0x00,
 
-        // Indicates the standby mode of the RFM module.
+        /// <summary> Indicates the standby mode of the RFM module.</summary>
         RFM_MODE_STANDBY = 0x01,
 
-        // Indicates the frequency synthesis TX mode of the RFM module.
+        /// <summary> Indicates the frequency synthesis TX mode of the RFM module.</summary>
         RFM_MODE_FSTX = 0x02,
 
-        // Indicates the transmit mode of the RFM module.
+        /// <summary> Indicates the transmit mode of the RFM module.</summary>
         RFM_MODE_TX = 0x03,
 
-        // Indicates the frequency synthesis RX mode of the RFM module.
+        /// <summary> Indicates the frequency synthesis RX mode of the RFM module.</summary>
         RFM_MODE_FSRX = 0x04,
 
-        // Indicates the continuous receive mode of the RFM module.
+        /// <summary> Indicates the continuous receive mode of the RFM module.</summary>
         RFM_MODE_RXCONT = 0x05,
 
-        // Indicates the single receive mode of the RFM module.
+        /// <summary> Indicates the single receive mode of the RFM module.</summary>
         RFM_MODE_RXSINGLE = 0x06,
 
-        // Indicates the channel activity detection (CAD) mode of the RFM module.
+        /// <summary> Indicates the channel activity detection (CAD) mode of the RFM module.</summary>
         RFM_MODE_CAD = 0x07,
 
-        // Indicates the LoRa mode of the RFM module.
+        /// <summary> Indicates the LoRa mode of the RFM module.</summary>
         RFM_MODE_LORA = 0x80,
     }
     #endregion
-
 
     /// <summary>
     /// Represents an RFM95 module used for radio frequency communication.
     /// </summary>
     public class RFM95
     {
-        private byte[] RFMRegisters = new byte[256];
+        public static byte[] RFMRegisters { get; set; } = new byte[256];
+
+        public byte Init()
+        {
+            // Read the version information from register 0x42
+            // Reads the version information from register 0x42 of the RFM module using the RFMRegisters class.
+            byte version = RFMRegisters.Read(0x42);
+
+            // Check if the version is not 18
+            // Checks if the version read from the RFM module is not equal to 18.
+            if (version != 18)
+            {
+                // Return 0 indicating failed initialization
+                // If the version is not equal to 18, returns 0, indicating a failed initialization.
+                return 0;
+            }
+
+            // Switch RFM to sleep mode
+            // Switches the RFM module to sleep mode using the SwitchMode function with the argument indicating sleep mode.
+            SwitchMode((byte)RFM_MODES.RFM_MODE_SLEEP);
+
+            // Wait until RFM is in sleep mode
+            // Introduces a delay of 50 milliseconds to ensure that the RFM module transitions to sleep mode effectively.
+            Thread.Sleep(50);
+
+            // Set RFM in LoRa mode
+            // Sets the RFM module to LoRa mode using the SwitchMode function with the argument indicating LoRa mode.
+            SwitchMode((byte)RFM_MODES.RFM_MODE_LORA);
+
+            // Set RFM to standby mode
+            // After setting the RFM module to LoRa mode, switches it to standby mode using the SwitchMode function with the argument indicating standby mode.
+            SwitchMode((byte)RFM_MODES.RFM_MODE_STANDBY);
+
+            // Set channel to channel 0
+            // Sets the RFM module's communication channel to channel 0 using the ChangeChannel function.
+            ChangeChannel((byte)RFM_CHANNELS.CH0);
+
+            // Set default power to maximum for US915 region
+            // Set the default output pin as PA_BOOST
+            // RFM_Set_Tx_Power(20, PA_BOOST_PIN);
+            // These lines are commented out but suggest setting the RFM module's default transmission power 
+            // to the maximum for the US915 region and configuring the output pin as PA_BOOST.
+
+            // Switch LNA boost on
+            // Activates the Low-Noise Amplifier (LNA) boost by writing a specific value to the RFM module's LNA register.
+            RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_LNA, 0x23);
+
+            // Set RFM to data rate 0 (SF12 BW 125 kHz)
+            // Sets the RFM module to use data rate 0, which corresponds to Spreading Factor (SF) 12 and 
+            // a bandwidth of 125 kHz in LoRa modulation.
+            ChangeDataRate(0x00);
+
+            // Rx Timeout set to 37 symbols
+            // Sets the Receive (Rx) Timeout to 37 symbols by writing the appropriate value to the 
+            // RFM module's register responsible for setting the Rx Timeout.
+            RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_SYM_TIMEOUT_LSB, 0x25);
+
+            // Preamble length set to 8 symbols
+            // 0x0008 + 4 = 12
+            // Sets the preamble length to 8 symbols, where each symbol typically corresponds to one bit. 
+            // The additional 4 is added to account for the header that precedes the preamble, resulting in a total 
+            // preamble length of 12 bytes.
+            RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_PREAMBLE_MSB, 0x00);
+            RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_PREAMBLE_LSB, 0x08);
+
+            // Set LoRa sync word
+            // Sets the synchronization word used in LoRa communication by writing the appropriate value to 
+            // the RFM module's sync word register.
+            RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_SYNC_WORD, 0x34);
+
+            // Set FIFO pointers
+            // TX base address
+            // Rx base address
+            // Sets the base addresses for the transmit (TX) and receive (RX) FIFO buffers in the RFM module. 
+            // The TX base address is set to 0x80, and the RX base address is set to 0x00.
+            RFMRegisters.Write(0x0E, 0x80);
+            RFMRegisters.Write(0x0F, 0x00);
+
+            // Return 1 indicating successful initialization
+            // Finally, returns 1 to indicate that the initialization process was successful.
+            return 1;
+        }
+
+
+        /// <summary>
+        /// Switches the mode of the RFM module.
+        /// </summary>
+        /// <param name="RFMMode">New mode to set for the RFM module.</param>
+        public void SwitchMode(byte RFMMode)
+        {
+            // If the RFM mode is RFM_MODE_SLEEP mode.
+            if (RFMMode == 0)
+            {
+                // Update the RFM register with the new mode.
+                RFMRegisters[(int)RFM_REGISTERS.RFM_REG_OP_MODE] = RFMMode;
+
+                // Get the name of the RFM mode.
+                string RFMModeName = Enum.GetName(typeof(RFM_MODES), RFMMode);
+
+                Console.WriteLine($"RFM-95 mode changed to: LoRa-{RFMModeName}");
+            }
+            else
+            {
+                // Set the MSB of the RFM mode to enable LoRa mode.
+                RFMMode |= 0x80;
+
+                // Update the RFM register with the new mode.
+                RFMRegisters[(int)RFM_REGISTERS.RFM_REG_OP_MODE] = RFMMode;
+
+                // Get the name of the RFM mode.
+                string RFMModeName = Enum.GetName(typeof(RFM_MODES), RFMMode & 0x7F);
+
+                // Display the name of the RFM Mode.
+                Console.WriteLine($"RFM-95 mode changed to: LoRa-{RFMModeName}");
+            }
+        }
+
+
+        /// <summary>
+        /// Sets the transmission power level for the RFM module.
+        /// </summary>
+        /// <param name="level">The desired power level, ranging from 0 to 20.</param>
+        /// <remarks>
+        /// This method ensures that the specified power level is within the acceptable range (0 to 20).
+        /// For power levels greater than 17 dBm, additional settings for high power operation are applied.
+        /// For power levels below or equal to 17 dBm, default power level operation is configured.
+        /// </remarks>
+        /// <seealso cref="SetOCP(byte)"/>
+        void SetTxPower(int level)
+        {
+            // Ensure that the power level is within the acceptable range (0 to 20)
+            if (level < 0)
+            {
+                level = 0;
+            }
+            else if (level > 20)
+            {
+                level = 20;
+            }
+
+            // Configure the RFM module's PA settings based on the specified power level
+            if (level > 17)
+            {
+                // For power levels greater than 17 dBm, apply additional settings for high power operation
+                // Map power levels 18 to 20 to the range 15 to 17
+                level -= 3;
+
+                // Configure for high power operation
+                RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_PA_DAC, 0x87);
+
+                // Set Over Current Protection (OCP) threshold
+                SetOCP(140);
+            }
+            else
+            {
+                // For power levels below or equal to 17 dBm, configure for default power level operation
+                // Configure for default power level operation
+                RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_PA_DAC, 0x84);
+
+                // Set Over Current Protection (OCP) threshold
+                SetOCP(100); 
+            }
+
+            // Configure the RFM module's PA settings for the specified power level
+            // Apply PA BOOST mask
+            RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_PA_CONFIG, (byte)(0x80 | (level - 2)));
+        }
+
+
+        /// <summary>
+        /// Set the Over Current Protection (OCP) threshold for simulation.
+        /// </summary>
+        /// <param name="mA">The desired current threshold in milliamperes.</param>
+        void SetOCP(byte mA)
+        {
+            // Set the Over Current Protection (OCP) threshold directly for simulation.
+            // Since this is for simulation, the OCP threshold can be set directly without calculations.
+            // Default OCP trim value
+            byte ocpTrim = 27;
+
+            // Write the OCP configuration (Apply OCP trim) to the RFM module
+            RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_OCP, (byte)(0x20 | (0x1F & ocpTrim)));
+        }
+
 
 
         /// <summary>
@@ -181,36 +384,131 @@ namespace LoRaWAN
 
 
         /// <summary>
-        /// Switches the mode of the RFM module.
+        /// Changes the channel of the RFM module.
         /// </summary>
-        /// <param name="RFMMode">New mode to set for the RFM module.</param>
-        public void SwitchMode(byte RFMMode)
+        /// <param name="channel">The new channel to set for the RFM module.</param>
+        public static void ChangeChannel(byte channel)
         {
-            // If the RFM mode is RFM_MODE_SLEEP mode.
-            if (RFMMode == 0)
+            // In EU_868 v1.02, the same frequency is used for uplink and downlink.
+            if (channel <= 0x08)
             {
-                // Update the RFM register with the new mode.
-                RFMRegisters[(int)RFM_REGISTERS.RFM_REG_OP_MODE] = RFMMode;
+                for (byte i = 0; i < 3; i++)
+                {
+                    // Write the frequency values to the corresponding RFM registers.
+                    RFMRegisters.Write((byte)(RFM_REGISTERS.RFM_REG_FR_MSB + i), LoraFrequency[channel, i]);
+                }
+            }
+        }
 
-                // Get the name of the RFM mode.
-                string RFMModeName = Enum.GetName(typeof(RFM_MODES), RFMMode);
 
-                Console.WriteLine($"RFM-95 mode changed to: LoRa-{RFMModeName}");
+        /// <summary>
+        /// Changes the spreading factor and bandwidth of the RFM module.
+        /// </summary>
+        /// <param name="spreadingFactor">The spreading factor to set. Should be in the range {6, 7, 8, 9, 10, 11, 12}.</param>
+        /// <param name="bandWidth">The bandwidth to set. Should be one of the following values: 
+        /// <list type="table">
+        ///     <item><term>0x00</term><description> 7.8kHz</description></item>
+        ///     <item><term>0x01</term><description> 10.4kHz</description></item>
+        ///     <item><term>0x02</term><description> 15.6kHz</description></item>
+        ///     <item><term>0x03</term><description> 20.8kHz</description></item>
+        ///     <item><term>0x04</term><description> 31.25kHz</description></item>
+        ///     <item><term>0x05</term><description> 41.7kHz</description></item>
+        ///     <item><term>0x06</term><description> 62.5kHz</description></item>
+        ///     <item><term>0x07</term><description> 125kHz</description></item>
+        ///     <item><term>0x08</term><description> 250kHz</description></item>
+        ///     <item><term>0x09</term><description> 500kHz</description></item>
+        /// </list>
+        /// </param>
+        public static void ChangeSFandBW(byte spreadingFactor, byte bandWidth)
+        {
+            // Set Cyclic Redundancy Check (CRC) On and specify the spreading factor.
+            RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_MODEM_CONFIG2, (byte)((spreadingFactor << 4) | 0b0100));
+
+            // Set coding rate and specify the bandwidth.
+            RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_MODEM_CONFIG1, (byte)((bandWidth << 4) | 0x02));
+
+            // Check if the spreading factor is greater than 10.
+            if (spreadingFactor > 10)
+            {
+                // Enable automatic gain control (AGC) and low data rate optimization.
+                RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_MODEM_CONFIG3, 0b1100);
             }
             else
             {
-                // Set the MSB of the RFM mode to enable LoRa mode.
-                RFMMode |= 0x80;
-
-                // Update the RFM register with the new mode.
-                RFMRegisters[(int)RFM_REGISTERS.RFM_REG_OP_MODE] = RFMMode;
-
-                // Get the name of the RFM mode.
-                string RFMModeName = Enum.GetName(typeof(RFM_MODES), RFMMode & 0x7F);
-
-                // Display the name of the RFM Mode.
-                Console.WriteLine($"RFM-95 mode changed to: LoRa-{RFMModeName}");
+                // Set AGC according to LnaGain register and enable low data rate optimization.
+                RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_MODEM_CONFIG3, 0b0100);
             }
         }
+
+
+        /// <summary>
+        /// Changes the data rate of the RFM module.
+        /// </summary>
+        /// <param name="dataRate">The new data rate to set for the RFM module.
+        /// <list type="table">
+        ///     <item><term>0x00</term><description> SF12BW125 </description></item>
+        ///     <item><term>0x01</term><description> SF11BW125</description></item>
+        ///     <item><term>0x02</term><description> SF10BW125</description></item>
+        ///     <item><term>0x03</term><description> SF9BW125</description></item>
+        ///     <item><term>0x04</term><description> SF8BW125</description></item>
+        ///     <item><term>0x05</term><description> SF7BW125</description></item>
+        ///     <item><term>0x06</term><description> SF7BW250</description></item>
+        ///     <item><term>Default</term><description> SF7BW125</description></item>
+        /// </list>
+        /// </param>
+        public static void ChangeDataRate(byte dataRate)
+        {
+            switch (dataRate)
+            {
+                case 0x00:  // SF12BW125
+                    ChangeSFandBW(12, 0x07);
+                    break;
+                case 0x01:  // SF11BW125
+                    ChangeSFandBW(11, 0x07);
+                    break;
+                case 0x02:  // SF10BW125
+                    ChangeSFandBW(10, 0x07);
+                    break;
+                case 0x03:  // SF9BW125
+                    ChangeSFandBW(9, 0x07);
+                    break;
+                case 0x04:  // SF8BW125
+                    ChangeSFandBW(8, 0x07);
+                    break;
+                case 0x05:  // SF7BW125
+                    ChangeSFandBW(7, 0x07);
+                    break;
+                case 0x06:  // SF7BW250
+                    ChangeSFandBW(7, 0x08);
+                    break;
+                default: // SF7BW125
+                    ChangeSFandBW(7, 0x07);
+                    break;
+            }
+        }
+
+
+        /// <summary>
+        /// Represents the regional frequency plan for RFM (Radio Frequency Module) communication.
+        /// </summary>
+        /// <remarks>
+        /// This array contains frequency settings for different channels used in RFM communication.
+        /// Each row represents a channel, and the values correspond to frequency components.
+        /// Regional Frequency Plan basically refers to allocation of radio frequency bands 
+        /// within specific geographic regions for LoRaWAN communication. 
+        /// These plans define which frequencies and channels are available for use by LoRaWAN devices in a particular region.
+        /// </remarks>
+        private static readonly byte[,] LoraFrequency = new byte[,]
+        {
+            { 0xD9, 0x06, 0x8B }, //Channel [0], 868.1 MHz / 61.035 Hz = 14222987 = 0xD9068B
+            { 0xD9, 0x13, 0x58 }, //Channel [1], 868.3 MHz / 61.035 Hz = 14226264 = 0xD91358
+            { 0xD9, 0x20, 0x24 }, //Channel [2], 868.5 MHz / 61.035 Hz = 14229540 = 0xD92024
+            { 0xD8, 0xC6, 0x8B }, //Channel [3], 867.1 MHz / 61.035 Hz = 14206603 = 0xD8C68B
+            { 0xD8, 0xD3, 0x58 }, //Channel [4], 867.3 MHz / 61.035 Hz = 14209880 = 0xD8D358
+            { 0xD8, 0xE0, 0x24 }, //Channel [5], 867.5 MHz / 61.035 Hz = 14213156 = 0xD8E024
+            { 0xD8, 0xEC, 0xF1 }, //Channel [6], 867.7 MHz / 61.035 Hz = 14216433 = 0xD8ECF1
+            { 0xD8, 0xF9, 0xBE }, //Channel [7], 867.9 MHz / 61.035 Hz = 14219710 = 0xD8F9BE
+            { 0xD9, 0x61, 0xBE }, // RX2 Receive channel 869.525 MHz / 61.035 Hz = 14246334 = 0xD961BE    
+        };
     }
 }
