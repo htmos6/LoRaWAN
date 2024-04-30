@@ -25,7 +25,8 @@ namespace LoRaWAN
         CH5,
         CH6,
         CH7,
-        MULTI,
+        CHRX2 = 8,
+        MULTI = 20,
     }
     #endregion
 
@@ -280,7 +281,7 @@ namespace LoRaWAN
         /// For power levels below or equal to 17 dBm, default power level operation is configured.
         /// </remarks>
         /// <seealso cref="SetOCP(byte)"/>
-        void SetTxPower(int level)
+        public void SetTxPower(int level)
         {
             // Ensure that the power level is within the acceptable range (0 to 20)
             if (level < 0)
@@ -325,7 +326,7 @@ namespace LoRaWAN
         /// Set the Over Current Protection (OCP) threshold for simulation.
         /// </summary>
         /// <param name="mA">The desired current threshold in milliamperes.</param>
-        void SetOCP(byte mA)
+        public void SetOCP(byte mA)
         {
             // Set the Over Current Protection (OCP) threshold directly for simulation.
             // Since this is for simulation, the OCP threshold can be set directly without calculations.
@@ -336,6 +337,19 @@ namespace LoRaWAN
             RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_OCP, (byte)(0x20 | (0x1F & ocpTrim)));
         }
 
+
+        /// <summary>
+        /// Retrieves the Received Signal Strength Indicator (RSSI) from the RFM module.
+        /// </summary>
+        /// <returns>The RSSI value read from the RFM module.</returns>
+        /// <remarks>
+        /// This method reads the RSSI value from the RFM module's register <see cref="RFM_REGISTERS.RFM_REG_LAST_RSSI"/>.
+        /// The RSSI value provides information about the received signal strength.
+        /// </remarks>
+        public byte GetRSSI()
+        {
+            return RFMRegisters.Read((byte)RFM_REGISTERS.RFM_REG_LAST_RSSI);
+        }
 
 
         /// <summary>
@@ -441,7 +455,7 @@ namespace LoRaWAN
         /// <summary>
         /// Changes the data rate of the RFM module.
         /// </summary>
-        /// <param name="dataRate">The new data rate to set for the RFM module.
+        /// <param name="dataRate">The new data rate to set for the RFM module. Region specified as EU868.
         /// <list type="table">
         ///     <item><term>0x00</term><description> SF12BW125 </description></item>
         ///     <item><term>0x01</term><description> SF11BW125</description></item>
