@@ -44,7 +44,7 @@ namespace LoRaWAN
         CHANNEL currentChannel;
         ACK_TYPES AckStatus;
 
-        RFM95 rfm95 = new RFM95();
+        public RFM95 rfm95 = new RFM95();
         AesCryptographyService aes256 = new AesCryptographyService();
 
 
@@ -248,8 +248,12 @@ namespace LoRaWAN
                 // Increment the RFM package counter to account for the additional byte
                 RFMPackage.Counter++;
 
+                Console.WriteLine($"Raw Message : {Encoding.ASCII.GetString(TxData.Data)}");
+
                 // Encrypt the data using AES256 algorithm
                 TxData.Data = aes256.Encrypt(TxData.Data, sessionData.NwkSKey, sessionData.AppSKey);
+
+                Console.WriteLine($"Encrypted Message : {Encoding.ASCII.GetString(TxData.Data)}");
 
                 // Load encrypted data into RFM package data
                 for (byte i = 0; i < TxData.Counter; i++)
@@ -299,7 +303,6 @@ namespace LoRaWAN
                     LoRaSettings.ChannelTx = 0x00;
                 }
             }
-
         }
 
 
@@ -474,7 +477,6 @@ namespace LoRaWAN
                 }
             }
         }
-
 
 
         /// <summary>

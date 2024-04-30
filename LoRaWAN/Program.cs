@@ -57,8 +57,8 @@ namespace LoRaWAN
             /// </remarks>
             sBuffer TxData = new sBuffer()
             {
-                Data = new byte[] { 0x00 },    // Transmit data
-                Counter = 0x00                 // Counter
+                Data = Encoding.UTF8.GetBytes("Hello World!"),    // Transmit data
+                Counter = 12                // Counter
             };
 
             /// <summary>
@@ -84,7 +84,11 @@ namespace LoRaWAN
                 Direction = 0x01    // Direction: 0x01 for uplink, 0x02 for downlink
             };
 
-
+            LoRaWAN loRaWAN = new LoRaWAN(TxData, RxData, RxMessage, sessionData, new sLoRaOTAA(), LoRaSettings, RFM_COMMAND.NO_RFM_COMMAND, MESSAGE_TYPES.MSG_UP);
+            loRaWAN.rfm95.Init();
+            loRaWAN.Cycle();
+            loRaWAN.SendData();
+            Console.ReadKey();
 
             /*
             // Define the input string
@@ -92,7 +96,7 @@ namespace LoRaWAN
 
 
             // Convert the input string to byte array using UTF-8 encoding
-            byte[] input = Encoding.UTF8.GetBytes(message);
+            byte[] input = Encoding.UTF8.GetBytes("Hello World!");
 
             var crypto = new AesCryptographyService();
 

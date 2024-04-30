@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
+using System.Reflection.Emit;
 using System.Runtime.ConstrainedExecution;
 using System.Runtime.Remoting.Channels;
 using System.Text;
@@ -196,7 +197,7 @@ namespace LoRaWAN
 
             // Check if the version is not 18
             // Checks if the version read from the RFM module is not equal to 18.
-            if (version != 18)
+            if (version != 0)
             {
                 // Return 0 indicating failed initialization
                 // If the version is not equal to 18, returns 0, indicating a failed initialization.
@@ -390,7 +391,7 @@ namespace LoRaWAN
                 // Get the name of the RFM mode.
                 string RFMModeName = Enum.GetName(typeof(RFM_MODES), RFMMode);
 
-                Console.WriteLine($"RFM-95 mode changed to: LoRa-{RFMModeName}");
+                Console.WriteLine($"RFM95 Mode Changed : LoRa-{RFMModeName}");
             }
             else
             {
@@ -404,7 +405,7 @@ namespace LoRaWAN
                 string RFMModeName = Enum.GetName(typeof(RFM_MODES), RFMMode & 0x7F);
 
                 // Display the name of the RFM Mode.
-                Console.WriteLine($"RFM-95 mode changed to: LoRa-{RFMModeName}");
+                Console.WriteLine($"RFM95 Mode Changed : LoRa-{RFMModeName}");
             }
         }
 
@@ -457,6 +458,7 @@ namespace LoRaWAN
             // Configure the RFM module's PA settings for the specified power level
             // Apply PA BOOST mask
             RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_PA_CONFIG, (byte)(0x80 | (level - 2)));
+            Console.WriteLine($"RFM95 Power Settled : {level-2} dB.");
         }
 
 
@@ -473,6 +475,8 @@ namespace LoRaWAN
 
             // Write the OCP configuration (Apply OCP trim) to the RFM module
             RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_OCP, (byte)(0x20 | (0x1F & ocpTrim)));
+
+            Console.WriteLine($"RFM95 OCP Trim Value Settled : {ocpTrim} mA.");
         }
 
 
@@ -546,6 +550,8 @@ namespace LoRaWAN
                     // Write the frequency values to the corresponding RFM registers.
                     RFMRegisters.Write((byte)(RFM_REGISTERS.RFM_REG_FR_MSB + i), LoraFrequency[channel, i]);
                 }
+
+                Console.WriteLine($"RFM95 Channel Settled Channel : {Enum.GetName(typeof(CHANNEL), channel)}.");
             }
         }
 
@@ -594,6 +600,8 @@ namespace LoRaWAN
                     ChangeSFandBW(9, 0x07);
                     break;
             }
+
+            Console.WriteLine($"RFM95 Data Rate Changed : {Enum.GetName(typeof(DATA_RATES), dataRate)}.");
         }
 
 
