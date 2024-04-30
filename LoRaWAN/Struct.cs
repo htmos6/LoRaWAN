@@ -10,7 +10,7 @@ namespace LoRaWAN
     /// <summary>
     /// Represents a buffer for LoRaWAN messages containing byte data.
     /// </summary>
-    public class LoRaWANBuffer
+    public class sBuffer
     {
         // Byte array to store the payload of the LoRaWAN message.
         public byte[] Data;
@@ -23,7 +23,7 @@ namespace LoRaWAN
     /// <summary>
     /// Represents session data for LoRaWAN communication.
     /// </summary>
-    public class LoRaSession
+    public class sLoRaSession
     {
         // Network Session Key: Key used for securing the communication between the end device and the network server.
         public byte[] NwkSKey;
@@ -35,14 +35,14 @@ namespace LoRaWAN
         public byte[] DevAddr;
 
         // Frame Counter: Counter used to keep track of the number of frames transmitted by the end device.
-        public uint[] FrameCounter;
+        public uint FrameCounter;
     }
 
 
     /// <summary>
     /// Represents parameters for Over-the-Air Activation (OTAA) in LoRaWAN.
     /// </summary>
-    public class LoRaOTAA
+    public class sLoRaOTAA
     {
         // Device EUI: Unique identifier assigned to the end device.
         public byte[] DevEUI;
@@ -67,7 +67,7 @@ namespace LoRaWAN
     /// <summary>
     /// Represents a LoRaWAN message.
     /// </summary>
-    public class LoRaMessage
+    public class sLoRaMessage
     {
         // MAC Header: Header containing control information for the LoRaWAN message.
         public byte MACHeader;
@@ -98,7 +98,7 @@ namespace LoRaWAN
     /// <summary>
     /// Represents settings for the end device (mote).
     /// </summary>
-    public class Settings
+    public class sSettings
     {
         // Confirm: Indicates whether the transmission is confirmed or unconfirmed.
         //          0x00: Unconfirmed, 0x01: Confirmed

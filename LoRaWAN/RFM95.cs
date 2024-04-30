@@ -238,6 +238,59 @@ namespace LoRaWAN
 
 
         /// <summary>
+        /// Sends a package using Radio Frequency Module (RFM).
+        /// </summary>
+        /// <param name="RFMTxPackage">The package to send.</param>
+        /// <param name="LoRaSettings">The LoRa settings to apply for transmission.</param>
+        public void SendPackage(sBuffer RFMTxPackage, sSettings LoRaSettings)
+        {
+            // Variable to hold the location of Tx part in First In, First Out (FiFo) buffer
+            byte RFMTxLocation = 0x00;
+
+            // Set RFM module in Standby mode
+            SwitchMode((byte)RFM_MODES.RFM_MODE_STANDBY);
+
+            // Switch data rate according to LoRa settings
+            ChangeDataRate(LoRaSettings.DatarateTx);
+
+            // Switch to the designated channel for transmission
+            ChangeChannel(LoRaSettings.ChannelTx);
+
+            // Switch DIO0 to TxDone
+            RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_DIO_MAPPING1, 0x40);
+
+            // Set In-Phase (I) and Quadrature (Q) to normal values
+            RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_INVERT_IQ, 0x27);
+            RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_INVERT_IQ2, 0x1D);
+
+            // Set payload length to the correct length
+            RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_PAYLOAD_LENGTH, RFMTxPackage.Counter);
+
+            // Get the location of Tx part of FiFo
+            RFMTxLocation = RFMRegisters.Read(0x0E);
+
+            // Set Serial Peripheral Interface (SPI) pointer to start of Tx part in FiFo
+            RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_FIFO_ADDR_PTR, RFMTxLocation);
+
+            // Write Payload to FiFo
+            for (byte i = 0; i < RFMTxPackage.Counter; i++)
+            {
+                RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_FIFO, RFMTxPackage.Data[i]);
+            }
+
+            // Switch RFM module to Transmit (Tx) mode
+            RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_OP_MODE, 0x83);
+
+            // Wait for TxDone signal
+            Thread.Sleep(2000);
+
+            // Clear interrupt flag
+            RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_IRQ_FLAGS, 0x08);
+        }
+
+
+
+        /// <summary>
         /// Switches the mode of the RFM module.
         /// </summary>
         /// <param name="RFMMode">New mode to set for the RFM module.</param>
