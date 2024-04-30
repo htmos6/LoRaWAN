@@ -89,6 +89,8 @@ namespace LoRaWAN
             // Initialize Message struct to transmit message
             sLoRaMessage message = new sLoRaMessage();
 
+            sessionData.AppSKey = key;
+
             // MACHeader: Message Authentication Code Header
             message.MACHeader = 0x00;
 
@@ -125,7 +127,6 @@ namespace LoRaWAN
                 message.MACHeader = (byte)(message.MACHeader | 0x80);
             }
 
-
             // Build the Radio Package
 
             // Load MAC header into RFM package data
@@ -157,7 +158,7 @@ namespace LoRaWAN
                 RFMPackage.Counter++;
 
                 // Encrypt the data using AES256 algorithm
-                TxData.Data = aes256.Encrypt(TxData.Data, key, iv);
+                TxData.Data = aes256.Encrypt(TxData.Data, sessionData.AppSKey, iv);
 
                 // Load encrypted data into RFM package data
                 for (byte i = 0; i < TxData.Counter; i++)
@@ -167,7 +168,7 @@ namespace LoRaWAN
             }
 
             // Calculate Message Integrity Code (MIC) for the transmitted data
-            byte[] MICData = aes256.CalculateMIC(TxData.Data, key);
+            byte[] MICData = aes256.CalculateMIC(TxData.Data, sessionData.AppSKey);
 
             // Load MIC into the RFM package data
             for (byte i = 0; i < 4; i++)
@@ -232,10 +233,129 @@ namespace LoRaWAN
         }
 
 
-        void SendACK()
+        /// <summary>
+        /// Sends ACK using LoRa protocol.
+        /// </summary>
+        /// <param name="TxData">The data to be transmitted.</param>
+        /// <param name="sessionData">Session data including device address and frame counter.</param>
+        /// <param name="LoRaSettings">LoRa settings for transmission.</param>
+        void SendACK(sBuffer TxData, sLoRaSession sessionData, sSettings LoRaSettings)
         {
+            // Initialize RFM buffer
+            byte[] RFMData = new byte[MAX_UPLINK_PAYLOAD_SIZE + 65];
+            sBuffer RFMPackage = new sBuffer() { Data = RFMData, Counter = 0x00 };
 
+            // Initialize Message struct to transmit message
+            sLoRaMessage message = new sLoRaMessage();
 
+            // Initialize sessionData Application Security Key for Encrption of the message.
+            sessionData.AppSKey = key;
+
+            // MACHeader: Message Authentication Code Header
+            message.MACHeader = 0x00;
+
+            // Set as MAC command
+            message.FramePort = 0x00;
+
+            // Frame Control: specifies the type of frame being transmitted
+            message.FrameControl = 0x00;
+
+            // Load device address from session data into the message
+            message.DevAddr[0] = sessionData.DevAddr[0];
+            message.DevAddr[1] = sessionData.DevAddr[1];
+            message.DevAddr[2] = sessionData.DevAddr[2];
+            message.DevAddr[3] = sessionData.DevAddr[3];
+
+            // Set up direction: 0x00 indicates uplink transmission
+            message.Direction = 0x00;
+
+            // Load the frame counter from the session data into the message
+            message.FrameCounter = sessionData.FrameCounter;
+
+            // Set(1) bit 6 to indicate unconfirmed transmission
+            message.MACHeader = (byte)(message.MACHeader | 0x40);
+
+            // Build the Radio Package
+
+            // Load MAC header into RFM package data
+            RFMPackage.Data[0] = message.MACHeader;
+
+            // Load device address into RFM package data
+            RFMPackage.Data[1] = message.DevAddr[3];
+            RFMPackage.Data[2] = message.DevAddr[2];
+            RFMPackage.Data[3] = message.DevAddr[1];
+            RFMPackage.Data[4] = message.DevAddr[0];
+
+            // Load frame control into RFM package data
+            RFMPackage.Data[5] = (byte)(message.FrameControl | 0x20);
+
+            // Load frame counter into RFM package data
+            RFMPackage.Data[6] = (byte)(sessionData.FrameCounter & 0x00FF);
+            RFMPackage.Data[7] = (byte)((sessionData.FrameCounter >> 8) & 0x00FF);
+
+            // Set data counter to 8 to indicate the number of bytes added so far
+            RFMPackage.Counter = 8;
+
+            // If there is data, load the Frame_Port field, encrypt the data, and load it into the RFM package
+            if (TxData.Counter > 0x00)
+            {
+                // Load Frame port field into RFM package data
+                RFMPackage.Data[8] = 0; // Mport: Message port
+
+                // Increment the RFM package counter to account for the additional byte
+                RFMPackage.Counter++;
+
+                // Encrypt the data using AES256 algorithm
+                TxData.Data = aes256.Encrypt(TxData.Data, sessionData.AppSKey, iv);
+
+                // Load encrypted data into RFM package data
+                for (byte i = 0; i < TxData.Counter; i++)
+                {
+                    RFMPackage.Data[RFMPackage.Counter++] = TxData.Data[i];
+                }
+            }
+
+            // Calculate Message Integrity Code (MIC) for the transmitted data
+            byte[] MICData = aes256.CalculateMIC(TxData.Data, sessionData.AppSKey);
+
+            // Load MIC into the RFM package data
+            for (byte i = 0; i < 4; i++)
+            {
+                RFMPackage.Data[RFMPackage.Counter++] = message.MIC[i];
+            }
+
+            // Send package using RFM module
+            rfm95.SendPackage(RFMPackage, LoRaSettings);
+
+            // Raise Frame counter
+            // Check if frame counter has not reached maximum value
+            if (sessionData.FrameCounter != 0xFFFF)
+            {
+                // Increment frame counter
+                sessionData.FrameCounter = sessionData.FrameCounter + 1;
+            }
+            else
+            {
+                // Reset frame counter to 0x0000 if it reaches the maximum value
+                sessionData.FrameCounter = 0x0000;
+            }
+
+            // Change channel for the next message if channel hopping is activated
+            // Check if channel hopping is enabled
+            if (LoRaSettings.ChannelHopping == 0x01)
+            {
+                // Check if current channel is within valid range (0x00 to 0x07)
+                if (LoRaSettings.ChannelTx < 0x07)
+                {
+                    // Increment channel number for next message
+                    LoRaSettings.ChannelTx++;
+                }
+                else
+                {
+                    // Reset channel number to 0x00 if it reaches the maximum value
+                    LoRaSettings.ChannelTx = 0x00;
+                }
+            }
         }
 
 
