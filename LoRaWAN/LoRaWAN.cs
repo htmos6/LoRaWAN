@@ -49,32 +49,32 @@ namespace LoRaWAN
 
 
         /// <summary>
-        /// 
+        /// Initializes a new instance of the LoRaWAN class with the specified parameters.
         /// </summary>
-        /// <param name="TxData">The data to be transmitted.</param>
+        /// <param name="TxData">The buffer containing data to be transmitted.</param>
         /// <param name="RxData">The buffer to store received data.</param>
         /// <param name="RxMessage">The received LoRaWAN message.</param>
         /// <param name="sessionData">The LoRaWAN session data.</param>
         /// <param name="OTAAData">The OTAA (Over-the-Air Activation) data.</param>
         /// <param name="LoRaSettings">The LoRaWAN settings.</param>
-        /// <param name="RFMCommandStatus">The RFM command type.</param>
+        /// <param name="RFMCommandStatus">The RFM command status.</param>
         /// <param name="upMessageType">The type of message to be transmitted.</param>
         public LoRaWAN(sBuffer TxData, sBuffer RxData, sLoRaMessage RxMessage, sLoRaSession sessionData, sLoRaOTAA OTAAData, sSettings LoRaSettings, RFM_COMMAND RFMCommandStatus, MESSAGE_TYPES upMessageType)
         {
-            this.TxData = TxData;
-            this.RxData = RxData;
-            this.RxMessage = RxMessage;
-            this.sessionData = sessionData;
-            this.OTAAData = OTAAData;
-            this.LoRaSettings = LoRaSettings;
+            this.TxData = TxData;                       // Data to be transmitted
+            this.RxData = RxData;                       // Buffer to store received data
+            this.RxMessage = RxMessage;                 // Received LoRaWAN message
+            this.sessionData = sessionData;             // LoRaWAN session data
+            this.OTAAData = OTAAData;                   // OTAA data
+            this.LoRaSettings = LoRaSettings;           // LoRaWAN settings
+            this.RFMCommandStatus = RFMCommandStatus;   // RFM command status
+            this.upMessageType = upMessageType;         // Type of message to be transmitted
 
-            this.RFMCommandStatus = RFMCommandStatus;
-            this.upMessageType = upMessageType;
-            this.deviceClass = DEVICE_CLASS_TYPES.CLASS_A;
-            this.RxStatus = RX_TYPES.NO_RX;
-            this.currentChannel = CHANNEL.CH0;
-            this.AckStatus = ACK_TYPES.NO_ACK;
-        }
+            this.deviceClass = DEVICE_CLASS_TYPES.CLASS_A; // Default device class
+            this.RxStatus = RX_TYPES.NO_RX;             // Default receive status
+            this.currentChannel = CHANNEL.CH0;          // Default current channel
+            this.AckStatus = ACK_TYPES.NO_ACK;          // Default ACK status
+        }                                               
 
 
         public void Cycle()
@@ -127,7 +127,7 @@ namespace LoRaWAN
                     SwitchToCHRX2_SF12BW125();
 
                     // Attempt to receive data on RX2 after transmitting.
-                    ReceiveData();
+                    ReceiveData(RxMessage);
                 }
 
                 // Wait for the duration of the RX1 window delay before proceeding.
@@ -151,7 +151,7 @@ namespace LoRaWAN
                     SwitchToCHRX2_SF12BW125();
 
                     // Attempt to receive data on RX2 after transmitting.
-                    ReceiveData(); 
+                    ReceiveData(RxMessage); 
                 }
 
                 // Wait for the duration of RX2 window delay. This is primarily used for testing whether the Class C device receives anything during RX2 window.
@@ -239,7 +239,7 @@ namespace LoRaWAN
             // Set data counter to 8 to indicate the number of bytes added so far
             RFMPackage.Counter = 8;
 
-            // If there is data, load the Frame_Port field, encrypt the data, and load it into the RFM package
+            // If there is data, load the FramePort field, encrypt the data, and load it into the RFM package
             if (TxData.Counter > 0x00)
             {
                 // Load Frame port field into RFM package data
@@ -303,10 +303,178 @@ namespace LoRaWAN
         }
 
 
-        void ReceiveData()
+        /// <summary>
+        /// Receives LoRaWAN data and processes it.
+        /// </summary>
+        /// <param name="message">The received LoRaWAN message.</param>
+        void ReceiveData(sLoRaMessage message)
         {
+            // Initialize RFM buffer for storing received data
+            byte[] RFMData = new byte[MAX_DOWNLINK_PAYLOAD_SIZE + 65];
+            sBuffer RFMPackage = new sBuffer() { Data = RFMData, Counter = 0x00 };
 
+            // Variables for storing check results and data properties
+            byte MICCheck;          // MIC check result
+            byte addressCheck;      // Address check result
+            byte frameOptionsLength;// Length of frame options field
+            byte dataLocation;      // Data location within the RFM package
+
+            // Initialize message status
+            MESSAGE_STATUS messageStatus = MESSAGE_STATUS.NO_MESSAGE;
+
+            // If it is a type A device, switch RFM to single receive mode
+            if (LoRaSettings.MoteClass == (byte)DEVICE_CLASS_TYPES.CLASS_A)
+            {
+                // Set message status to result of single receive operation
+                messageStatus = rfm95.SingleReceive(LoRaSettings);
+            }
+            else
+            {
+                // For non-type A devices, switch RFM to standby mode
+                rfm95.SwitchMode((byte)RFM_MODES.RFM_MODE_STANDBY);
+
+                // Set message status to indicate new message reception
+                messageStatus = MESSAGE_STATUS.NEW_MESSAGE;
+            }
+
+            // If there is a message received, get the data from the RFM
+            if (messageStatus == MESSAGE_STATUS.NEW_MESSAGE)
+            {
+                // Get the package from RFM
+                messageStatus = rfm95.GetPackage(RFMPackage);
+
+                // If it's a Class C device, switch RFM back to continuous receive mode
+                if (LoRaSettings.MoteClass == (byte)DEVICE_CLASS_TYPES.CLASS_C)
+                {
+                    // Switch RFM to Continuous Receive
+                    rfm95.ContinuousReceive(LoRaSettings);
+                }
+            }
+
+            // If CRC is OK, breakdown the received package
+            if (messageStatus == MESSAGE_STATUS.CRC_OK)
+            {
+                // Get MACHeader
+                message.MACHeader = RFMData[0];
+
+                // Data message
+                if (message.MACHeader == 0x40 || message.MACHeader == 0x60 || message.MACHeader == 0x80 || message.MACHeader == 0xA0)
+                {
+                    // Get device address from received data
+                    message.DevAddr[0] = RFMData[4];
+                    message.DevAddr[1] = RFMData[3];
+                    message.DevAddr[2] = RFMData[2];
+                    message.DevAddr[3] = RFMData[1];
+
+                    // Get frame control field
+                    message.FrameControl = RFMData[5];
+
+                    // Get frame counter
+                    message.FrameCounter = RFMData[7];
+                    message.FrameCounter = (message.FrameCounter << 8) + RFMData[6];
+
+                    // Lower package length with 4 to remove MIC length
+                    RFMPackage.Counter -= 4;
+
+                    // Calculate MIC
+                    aes256.CalculateMIC(TxData.Data, sessionData.NwkSKey);
+
+                    MICCheck = 0x00;
+
+                    // Compare MIC
+                    for (byte i = 0x00; i < 4; i++)
+                    {
+                        if (RFMData[RFMPackage.Counter + i] == message.MIC[i])
+                        {
+                            MICCheck++;
+                        }
+                    }
+
+                    // Check MIC
+                    if (MICCheck == 0x04)
+                    {
+                        messageStatus = MESSAGE_STATUS.MIC_OK;
+                    }
+                    else
+                    {
+                        messageStatus = MESSAGE_STATUS.WRONG_MESSAGE;
+                    }
+
+                    addressCheck = 0;
+                    // Check address
+                    if (MICCheck == 0x04)
+                    {
+                        for (byte i = 0x00; i < 4; i++)
+                        {
+                            if (sessionData.DevAddr[i] == message.DevAddr[i])
+                            {
+                                addressCheck++;
+                            }
+                        }
+                    }
+
+                    messageStatus = (addressCheck == 0x04) ? MESSAGE_STATUS.ADDRESS_OK : MESSAGE_STATUS.WRONG_MESSAGE;
+
+                    // If the address is OK, decrypt the data and send it to USB
+                    if (messageStatus == MESSAGE_STATUS.ADDRESS_OK)
+                    {
+                        dataLocation = 8;
+
+                        // Get length of frame options field
+                        frameOptionsLength = (byte)(message.FrameControl & 0x0F);
+
+                        // Add length of frame options field to data location
+                        dataLocation = (byte)(dataLocation + frameOptionsLength);
+
+                        // Check if there is data in the package
+                        if (RFMPackage.Counter == dataLocation)
+                        {
+                            RxData.Counter = 0x00;
+                        }
+                        else
+                        {
+                            // Get port field when there is data
+                            message.FramePort = RFMData[8];
+
+                            // Calculate the amount of data in the package
+                            RxData.Counter = (byte)(RFMPackage.Counter - dataLocation - 1);
+
+                            // Correct the data location by 1 for the Fport field
+                            dataLocation = (byte)(dataLocation + 1);
+                        }
+
+                        // Copy and decrypt the data
+                        if (RxData.Counter != 0x00)
+                        {
+                            for (byte i = 0; i < RxData.Counter; i++)
+                            {
+                                RxData.Data[i] = RFMData[dataLocation + i];
+                            }
+
+                            // Check frame port field. When zero, it is a MAC command message encrypted with NwkSKey
+                            // Since Decrption algorithm simplified, keep like that. Just to keep original structure.
+                            if (message.FramePort == 0x00)
+                            {
+                                aes256.Decrypt(RxData.Data, sessionData.NwkSKey, sessionData.AppSKey);
+                            }
+                            else
+                            {
+                                aes256.Decrypt(RxData.Data, sessionData.NwkSKey, sessionData.AppSKey);
+                            }
+
+                            messageStatus = MESSAGE_STATUS.MESSAGE_DONE;
+                        }
+                    }
+                }
+
+                // If the message status is wrong, set the RxData counter to 0
+                if (messageStatus == MESSAGE_STATUS.WRONG_MESSAGE)
+                {
+                    RxData.Counter = 0x00;
+                }
+            }
         }
+
 
 
         /// <summary>
@@ -366,7 +534,7 @@ namespace LoRaWAN
             // Set data counter to 8 to indicate the number of bytes added so far
             RFMPackage.Counter = 8;
 
-            // If there is data, load the Frame_Port field, encrypt the data, and load it into the RFM package
+            // If there is data, load the FramePort field, encrypt the data, and load it into the RFM package
             if (TxData.Counter > 0x00)
             {
                 // Load Frame port field into RFM package data
@@ -657,7 +825,7 @@ namespace LoRaWAN
             while (stopwatch.ElapsedMilliseconds - previousTime < ReceiveDelayX + RXXWindow)
             {
                 // Continuously attempt to receive data during the RX window
-                ReceiveData();
+                ReceiveData(RxMessage);
             }
         }
     }
