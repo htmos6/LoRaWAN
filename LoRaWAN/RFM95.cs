@@ -156,6 +156,7 @@ namespace LoRaWAN
     /// </summary>
     public class RFM95
     {
+        /// <summary> The RFM95 class contains methods that exclusively modify RFMRegisters.</summary>
         public static byte[] RFMRegisters { get; set; } = new byte[256];
 
         public byte Init()
@@ -287,7 +288,6 @@ namespace LoRaWAN
             // Clear interrupt flag
             RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_IRQ_FLAGS, 0x08);
         }
-
 
 
         /// <summary>
@@ -466,46 +466,6 @@ namespace LoRaWAN
 
 
         /// <summary>
-        /// Changes the spreading factor and bandwidth of the RFM module.
-        /// </summary>
-        /// <param name="spreadingFactor">The spreading factor to set. Should be in the range {6, 7, 8, 9, 10, 11, 12}.</param>
-        /// <param name="bandWidth">The bandwidth to set. Should be one of the following values: 
-        /// <list type="table">
-        ///     <item><term>0x00</term><description> 7.8kHz</description></item>
-        ///     <item><term>0x01</term><description> 10.4kHz</description></item>
-        ///     <item><term>0x02</term><description> 15.6kHz</description></item>
-        ///     <item><term>0x03</term><description> 20.8kHz</description></item>
-        ///     <item><term>0x04</term><description> 31.25kHz</description></item>
-        ///     <item><term>0x05</term><description> 41.7kHz</description></item>
-        ///     <item><term>0x06</term><description> 62.5kHz</description></item>
-        ///     <item><term>0x07</term><description> 125kHz</description></item>
-        ///     <item><term>0x08</term><description> 250kHz</description></item>
-        ///     <item><term>0x09</term><description> 500kHz</description></item>
-        /// </list>
-        /// </param>
-        public void ChangeSFandBW(byte spreadingFactor, byte bandWidth)
-        {
-            // Set Cyclic Redundancy Check (CRC) On and specify the spreading factor.
-            RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_MODEM_CONFIG2, (byte)((spreadingFactor << 4) | 0b0100));
-
-            // Set coding rate and specify the bandwidth.
-            RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_MODEM_CONFIG1, (byte)((bandWidth << 4) | 0x02));
-
-            // Check if the spreading factor is greater than 10.
-            if (spreadingFactor > 10)
-            {
-                // Enable automatic gain control (AGC) and low data rate optimization.
-                RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_MODEM_CONFIG3, 0b1100);
-            }
-            else
-            {
-                // Set AGC according to LnaGain register and enable low data rate optimization.
-                RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_MODEM_CONFIG3, 0b0100);
-            }
-        }
-
-
-        /// <summary>
         /// Changes the data rate of the RFM module.
         /// </summary>
         /// <param name="dataRate">The new data rate to set for the RFM module. Region specified as EU868.
@@ -517,7 +477,7 @@ namespace LoRaWAN
         ///     <item><term>0x04</term><description> SF8BW125</description></item>
         ///     <item><term>0x05</term><description> SF7BW125</description></item>
         ///     <item><term>0x06</term><description> SF7BW250</description></item>
-        ///     <item><term>Default</term><description> SF7BW125</description></item>
+        ///     <item><term>Default</term><description> SF9BW125</description></item>
         /// </list>
         /// </param>
         public void ChangeDataRate(byte dataRate)
@@ -545,9 +505,49 @@ namespace LoRaWAN
                 case 0x06:  // SF7BW250
                     ChangeSFandBW(7, 0x08);
                     break;
-                default: // SF7BW125
-                    ChangeSFandBW(7, 0x07);
+                default: // SF9BW125
+                    ChangeSFandBW(9, 0x07);
                     break;
+            }
+        }
+
+
+        /// <summary>
+        /// Changes the spreading factor and bandwidth of the RFM module.
+        /// </summary>
+        /// <param name="spreadingFactor">The spreading factor to set. Should be in the range {6, 7, 8, 9, 10, 11, 12}.</param>
+        /// <param name="bandWidth">The bandwidth to set. Should be one of the following values: 
+        /// <list type="table">
+        ///     <item><term>0x00</term><description> 7.8kHz</description></item>
+        ///     <item><term>0x01</term><description> 10.4kHz</description></item>
+        ///     <item><term>0x02</term><description> 15.6kHz</description></item>
+        ///     <item><term>0x03</term><description> 20.8kHz</description></item>
+        ///     <item><term>0x04</term><description> 31.25kHz</description></item>
+        ///     <item><term>0x05</term><description> 41.7kHz</description></item>
+        ///     <item><term>0x06</term><description> 62.5kHz</description></item>
+        ///     <item><term>0x07</term><description> 125kHz</description></item>
+        ///     <item><term>0x08</term><description> 250kHz</description></item>
+        ///     <item><term>0x09</term><description> 500kHz</description></item>
+        /// </list>
+        /// </param>
+        private void ChangeSFandBW(byte spreadingFactor, byte bandWidth)
+        {
+            // Set Cyclic Redundancy Check (CRC) On and specify the spreading factor.
+            RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_MODEM_CONFIG2, (byte)((spreadingFactor << 4) | 0b0100));
+
+            // Set coding rate and specify the bandwidth.
+            RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_MODEM_CONFIG1, (byte)((bandWidth << 4) | 0x02));
+
+            // Check if the spreading factor is greater than 10.
+            if (spreadingFactor > 10)
+            {
+                // Enable automatic gain control (AGC) and low data rate optimization.
+                RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_MODEM_CONFIG3, 0b1100);
+            }
+            else
+            {
+                // Set AGC according to LnaGain register and enable low data rate optimization.
+                RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_MODEM_CONFIG3, 0b0100);
             }
         }
 
