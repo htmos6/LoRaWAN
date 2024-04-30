@@ -410,7 +410,7 @@ namespace LoRaWAN
         /// </summary>
         /// <param name="address">Register address to read from.</param>
         /// <returns>Data read from the register.</returns>
-        public static byte Read(byte address)
+        public byte Read(byte address)
         {
             byte data = 0x00;
 
@@ -434,7 +434,7 @@ namespace LoRaWAN
         /// </summary>
         /// <param name="address">Register address to write to.</param>
         /// <param name="data">Data to write to the register.</param>
-        public static void Write(byte address, byte data)
+        public void Write(byte address, byte data)
         {
             // Create a client to connect to the gateway.
 
@@ -451,7 +451,7 @@ namespace LoRaWAN
         /// Changes the channel of the RFM module.
         /// </summary>
         /// <param name="channel">The new channel to set for the RFM module.</param>
-        public static void ChangeChannel(byte channel)
+        public void ChangeChannel(byte channel)
         {
             // In EU_868 v1.02, the same frequency is used for uplink and downlink.
             if (channel <= 0x08)
@@ -483,7 +483,7 @@ namespace LoRaWAN
         ///     <item><term>0x09</term><description> 500kHz</description></item>
         /// </list>
         /// </param>
-        public static void ChangeSFandBW(byte spreadingFactor, byte bandWidth)
+        public void ChangeSFandBW(byte spreadingFactor, byte bandWidth)
         {
             // Set Cyclic Redundancy Check (CRC) On and specify the spreading factor.
             RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_MODEM_CONFIG2, (byte)((spreadingFactor << 4) | 0b0100));
@@ -520,7 +520,7 @@ namespace LoRaWAN
         ///     <item><term>Default</term><description> SF7BW125</description></item>
         /// </list>
         /// </param>
-        public static void ChangeDataRate(byte dataRate)
+        public void ChangeDataRate(byte dataRate)
         {
             switch (dataRate)
             {
@@ -562,7 +562,7 @@ namespace LoRaWAN
         /// within specific geographic regions for LoRaWAN communication. 
         /// These plans define which frequencies and channels are available for use by LoRaWAN devices in a particular region.
         /// </remarks>
-        private static readonly byte[,] LoraFrequency = new byte[,]
+        private readonly byte[,] LoraFrequency = new byte[,]
         {
             { 0xD9, 0x06, 0x8B }, //Channel [0], 868.1 MHz / 61.035 Hz = 14222987 = 0xD9068B
             { 0xD9, 0x13, 0x58 }, //Channel [1], 868.3 MHz / 61.035 Hz = 14226264 = 0xD91358
