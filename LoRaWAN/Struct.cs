@@ -137,7 +137,7 @@ namespace LoRaWAN
     /// <summary>
     /// Enumeration of LoRaWAN channels.
     /// </summary>
-    public enum Channel
+    public enum CHANNEL
     {
         CH0 = 0,    // Channel 0
         CH1 = 1,    // Channel 1
@@ -153,9 +153,24 @@ namespace LoRaWAN
 
 
     /// <summary>
+    /// Enumeration defining LoRa data rates.
+    /// </summary>
+    public enum DATA_RATES : byte
+    {
+        SF12BW125 = 0x00,
+        SF11BW125 = 0x01,
+        SF10BW125 = 0x02,
+        SF9BW125 = 0x03,
+        SF8BW125 = 0x04,
+        SF7BW125 = 0x05,
+        SF7BW250 = 0x06
+    }
+
+
+    /// <summary>
     /// Enumeration of transmitter pins.
     /// </summary>
-    public enum TransmitterPins
+    public enum TRANSMITTER_PINS
     {
         RFO_PIN = 0,        // RFO Pin: Output pin used for RF output.
         PA_BOOST_PIN = 1    // PA Boost Pin: Output pin used for power amplifier boost.
@@ -165,7 +180,7 @@ namespace LoRaWAN
     /// <summary>
     /// Enumeration of device classes.
     /// </summary>
-    public enum DeviceClassTypes
+    public enum DEVICE_CLASS_TYPES
     {
         CLASS_A,    // Class A: One of the device classes defined in LoRaWAN, characterized by its asynchronous communication mode.
         CLASS_C     // Class C: One of the device classes defined in LoRaWAN, characterized by its continuous communication mode.
@@ -175,7 +190,7 @@ namespace LoRaWAN
     /// <summary>
     /// Enumeration of reception modes. Device actively listens for incoming connections.
     /// </summary>
-    public enum RXTypes
+    public enum RX_TYPES
     {
         NO_RX,  // No RX: Indicates that there is no reception.
         NEW_RX  // New RX: Indicates the start of a new reception.
@@ -185,7 +200,7 @@ namespace LoRaWAN
     /// <summary>
     /// Enumeration of acknowledgment modes.
     /// </summary>
-    public enum ACKTypes
+    public enum ACK_TYPES
     {
         NO_ACK, // No Acknowledgment: Indicates that there is no acknowledgment for a transmitted message.
         NEW_ACK // New Acknowledgment: Indicates the reception of a new acknowledgment for a transmitted message.
@@ -195,7 +210,7 @@ namespace LoRaWAN
     /// <summary>
     /// Enumeration of message types.
     /// </summary>
-    public enum MessageTypes
+    public enum MESSAGE_TYPES
     {
         MSG_UP, // Upstream Message: Message transmitted from an end device to the network server.
         MSG_ACK // Acknowledgment Message: Message sent as an acknowledgment in response to a received message.
