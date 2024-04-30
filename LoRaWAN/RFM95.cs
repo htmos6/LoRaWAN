@@ -152,12 +152,41 @@ namespace LoRaWAN
     #endregion
 
     /// <summary>
+    /// Enumerates the possible status of a LoRaWAN message.
+    /// </summary>
+    public enum MESSAGE_STATUS
+    {
+        NO_MESSAGE,         // No message is present
+        NEW_MESSAGE,        // New message received
+        CRC_OK,             // CRC (Cyclic Redundancy Check) is OK
+        MIC_OK,             // message Integrity Code (MIC) is OK
+        ADDRESS_OK,         // Address is correct
+        MESSAGE_DONE,       // message processing is completed
+        TIMEOUT,            // Timeout occurred
+        WRONG_MESSAGE       // Received message is incorrect
+    };
+
+
+    /// <summary>
     /// Represents an RFM95 module used for radio frequency communication.
     /// </summary>
     public class RFM95
     {
         /// <summary> The RFM95 class contains methods that exclusively modify RFMRegisters.</summary>
         public static byte[] RFMRegisters { get; set; } = new byte[256];
+
+
+        public MESSAGE_STATUS SingleReceive(sSettings LoRaSettings)
+        {
+            return MESSAGE_STATUS.NO_MESSAGE;
+        }
+
+        public void ContinuousReceive(sSettings LoRaSettings)
+        {
+
+            ;
+        }
+
 
         public byte Init()
         {
@@ -287,6 +316,62 @@ namespace LoRaWAN
 
             // Clear interrupt flag
             RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_IRQ_FLAGS, 0x08);
+        }
+
+
+        /// <summary>
+        /// Retrieves the status of the received LoRaWAN package.
+        /// </summary>
+        /// <param name="RFMRxPackage">The buffer containing the received LoRaWAN package.</param>
+        /// <returns>The status of the received LoRaWAN package.</returns>
+        public MESSAGE_STATUS GetPackage(sBuffer RFMRxPackage)
+        {
+            // Variable to store RFM interrupts
+            byte RFMInterrupts = 0x00;
+
+            // Variable to store RFM package location
+            byte RFMPackageLocation = 0x00;     
+
+            MESSAGE_STATUS messageStatus = MESSAGE_STATUS.NO_MESSAGE;
+
+            // Read interrupt register to check for incoming messages
+            RFMInterrupts = RFMRegisters.Read(0x12);
+
+            // Check if RX_DONE interrupt is set
+            if ((RFMInterrupts & 0x40) == 0x40)  // If RX_DONE_MASK is set
+            {
+                // Check if CRC is OK
+                if ((RFMInterrupts & 0x20) != 0x20)
+                {
+                    messageStatus = MESSAGE_STATUS.CRC_OK;
+                }
+                else
+                {
+                    // CRC check failed, message is incorrect
+                    messageStatus = MESSAGE_STATUS.WRONG_MESSAGE;
+                }
+            }
+
+            // Read the start position of the received package
+            RFMPackageLocation = RFMRegisters.Read(0x10);
+
+            // Read the length of the received package
+            RFMRxPackage.Counter = RFMRegisters.Read(0x13);
+
+            // Set SPI pointer to the start of the package
+            RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_FIFO_ADDR_PTR, RFMPackageLocation);
+
+            // Read the received package data from the FIFO
+            for (byte i = 0x00; i < RFMRxPackage.Counter; i++)
+            {
+                RFMRxPackage.Data[i] = RFMRegisters.Read((byte)RFM_REGISTERS.RFM_REG_FIFO);
+            }
+
+            // Clear interrupt flags after processing the received package
+            RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_IRQ_FLAGS, RFMInterrupts);
+
+            // Return the status of the received LoRaWAN package
+            return messageStatus;
         }
 
 
