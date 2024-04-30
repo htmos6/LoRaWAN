@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using System.Runtime;
@@ -8,6 +9,15 @@ using System.Threading.Tasks;
 
 namespace LoRaWAN
 {
+    public enum RFM_COMMAND
+    { 
+        NO_RFM_COMMAND, 
+        NEW_RFM_COMMAND, 
+        RFM_COMMAND_DONE, 
+        JOIN, 
+        NEW_ACK_COMMAND 
+    };
+
     public class LoRaWAN
     {
         // Define max payload size used for this node
@@ -20,58 +30,112 @@ namespace LoRaWAN
         // Define the input string
         string message = "Hello World!";
 
-
         RFM95 rfm95 = new RFM95();
         AesCryptographyService aes256 = new AesCryptographyService();
 
-        /*
-        // Messages
-        byte Data_Tx[MAX_UPLINK_PAYLOAD_SIZE];
-        sBuffer Buffer_Tx;
-        byte Data_Rx[MAX_DOWNLINK_PAYLOAD_SIZE];
-        sBuffer Buffer_Rx;
-        sLoRa_Message Message_Rx;
 
-        //Callback function variable
-        void (* messageCallback) (sBuffer* Data_Rx, bool isConfirmed, uint8_t fPort) = NULL;
+        /// <summary>
+        /// Performs a LoRaWAN communication cycle, including transmission and reception of data.
+        /// </summary>
+        /// <param name="TxData">The data to be transmitted.</param>
+        /// <param name="RxData">The buffer to store received data.</param>
+        /// <param name="RFMCommand">The RFM command type.</param>
+        /// <param name="sessionData">The LoRaWAN session data.</param>
+        /// <param name="OTAAData">The OTAA (Over-the-Air Activation) data.</param>
+        /// <param name="RxMessage">The received LoRaWAN message.</param>
+        /// <param name="LoRaSettings">The LoRaWAN settings.</param>
+        /// <param name="upMessageType">The type of message to be transmitted.</param>
+        public void Cycle(sBuffer TxData, sBuffer RxData, RFM_COMMAND RFMCommand, sLoRaSession sessionData, sLoRaOTAA OTAAData, sLoRaMessage RxMessage, sSettings LoRaSettings, MESSAGE_TYPES upMessageType)
+        {
+            // Define constant for the delay before the first receive window
+            const long ReceiveDelay1 = 1000;
+            // Define constant for the delay before the second receive window, ensuring it starts after the first window
+            const long ReceiveDelay2 = 2000;
+            // Define constant for the duration of the first receive window
+            const long RX1Window = 1000;
+            // Define constant for the duration of the second receive window
+            const long RX2Window = 1000;
 
-        // Declare ABP session
-        byte Address_Tx[4];
-        byte NwkSKey[16];
-        byte AppSKey[16];
-        unsigned int Frame_Counter_Tx;
-        sLoRa_Session Session_Data;
+            // Define a class-level Stopwatch variable to measure time intervals
+            Stopwatch stopwatch = new Stopwatch();
+            stopwatch.Start();
 
-        // Declare OTAA data struct
-        byte DevEUI[8];
-        byte AppEUI[8];
-        byte AppKey[16];
-        byte DevNonce[2];
-        byte AppNonce[3];
-        byte NetID[3];
-        sLoRa_OTAA OTAA_Data;
+            // Initialize a variable to store the previous time value
+            long previousTime = 0;
 
-        // Declare LoRA settings struct
-        sSettings LoRa_Settings;
-        sRFM_pins LoRa_Pins;
+            // Store the current RX1 channel configuration
+            byte Rx1Channel = LoRaSettings.ChannelRx;
+            // Store the current RX1 data rate configuration
+            byte Rx1DataRate = LoRaSettings.DatarateTx;
 
-        byte drate_common;
+            // Transmit data if a new RFM command is received
+            if (RFMCommand == RFM_COMMAND.NEW_RFM_COMMAND)
+            {
+                // Check the type of message to be transmitted. If it's an uplink message, send data.
+                if (upMessageType == MESSAGE_TYPES.MSG_UP)
+                {
+                    SendData(TxData, sessionData, LoRaSettings);
+                }
+                // If it's an acknowledgement message, send ACK
+                else if (upMessageType == MESSAGE_TYPES.MSG_ACK)
+                {
+                    SendACK(TxData, sessionData, LoRaSettings);
+                }
 
-        // Lora Setting Class
-        devclass_t dev_class;
+                // Stop the stopwatch to record the elapsed time
+                stopwatch.Stop();
+                // Store the elapsed time in milliseconds
+                previousTime = stopwatch.ElapsedMilliseconds;
 
-        // channel mode
-        byte currentChannel;
 
-        // UART
-        RFM_command_t RFM_Command_Status;
-        rx_t Rx_Status;
 
-        // ACK reception
-        ack_t Ack_Status;
+                // If the device operates in Class C mode, immediately switch to RX2 for potential downlink reception.
+                if (LoRaSettings.MoteClass == (byte)DEVICE_CLASS_TYPES.CLASS_C)
+                {
+                    SwitchToCHRX2_SF12BW125(LoRaSettings);
 
-        msg_t upMsg_Type;
-        */
+                    // Attempt to receive data on RX2 after transmitting.
+                    ReceiveData(RxData, sessionData, OTAAData, RxMessage, LoRaSettings);
+                }
+
+                // Wait for the duration of the RX1 window delay before proceeding.
+                WaitForDelay(stopwatch, previousTime, ReceiveDelay1);
+
+                // Restore the channel and data rate settings for RX1.
+                LoRaSettings.ChannelRx = Rx1Channel;
+                LoRaSettings.DatarateRx = Rx1DataRate; 
+
+                // Continue receiving data on RX1 for the duration of RX1 window.
+                WaitForRXXWindow(stopwatch, previousTime, ReceiveDelay1, RX1Window, RxData, sessionData, OTAAData, RxMessage, LoRaSettings);
+
+                // Exit the method if a message is received on RX1
+                if (RxData.Counter > 0) return;
+
+
+
+                // For Class C devices, open RX2 immediately after the end of the first RX window.
+                if (LoRaSettings.MoteClass == (byte)DEVICE_CLASS_TYPES.CLASS_C)
+                {
+                    SwitchToCHRX2_SF12BW125(LoRaSettings);
+
+                    // Attempt to receive data on RX2 after transmitting.
+                    ReceiveData(RxData, sessionData, OTAAData, RxMessage, LoRaSettings); 
+                }
+
+                // Wait for the duration of RX2 window delay. This is primarily used for testing whether the Class C device receives anything during RX2 window.
+                WaitForDelay(stopwatch, previousTime, ReceiveDelay2);
+
+                // Configure the channel and data rate settings for RX2 reception.
+                LoRaSettings.ChannelRx = (byte)CHANNEL.CHRX2;          
+                LoRaSettings.DatarateRx = (byte)DATA_RATES.SF12BW125;
+
+                // Continue receiving data on RX2 for the duration of RX2 window.
+                WaitForRXXWindow(stopwatch, previousTime, ReceiveDelay2, RX2Window, RxData, sessionData, OTAAData, RxMessage, LoRaSettings);
+
+                // Exit the method if a message is received on RX1
+                if (RxData.Counter > 0) return;
+            }
+        }
 
 
         /// <summary>
@@ -212,13 +276,12 @@ namespace LoRaWAN
         }
 
 
-        void ReceiveData()
+        void ReceiveData(sBuffer RxData, sLoRaSession sessionData, sLoRaOTAA OTAAData, sLoRaMessage RxMessage, sSettings LoRaSettings)
         {
-
 
         }
 
-
+        /*
         void JoinAccept()
         {
 
@@ -231,6 +294,7 @@ namespace LoRaWAN
 
 
         }
+        */
 
 
         /// <summary>
@@ -359,26 +423,96 @@ namespace LoRaWAN
         }
 
 
-        void SetTxPower(int level)
+        /// <summary>
+        /// Sets the transmit power level.
+        /// </summary>
+        /// <param name="level">The desired transmit power level.</param>
+        public void SetTxPower(int level)
         {
+            // Delegate the setting of transmit power to the RFM95 module.
             rfm95.SetTxPower(level);
         }
 
-        int GetRssi()
+
+        /// <summary>
+        /// Retrieves the Received Signal Strength Indication (RSSI) in dBm.
+        /// </summary>
+        /// <returns>The RSSI value in dBm.</returns>
+        public int GetRssi()
         {
-            // return rssi value in dBm - convertion according to sx1276 datasheet
+            // Return the RSSI value in dBm, adjusted according to the SX1276 datasheet.
             return -157 + rfm95.GetRSSI();
         }
 
+
+        /// <summary>
+        /// Puts the RFM95 module to sleep mode.
+        /// </summary>
         public void Sleep()
         {
+            // Set the RFM95 module to sleep mode.
             rfm95.SwitchMode((byte)RFM_MODES.RFM_MODE_SLEEP);
         }
 
-        void WakeUp()
+
+        /// <summary>
+        /// Wakes up the RFM95 module from sleep mode to standby mode.
+        /// </summary>
+        public void WakeUp()
         {
+            // Set the RFM95 module to standby mode to wake it up.
             rfm95.SwitchMode((byte)RFM_MODES.RFM_MODE_STANDBY);
         }
 
+
+        /// <summary>
+        /// Switches the LoRaSettings to use CHRX2 channel with SF12BW125 data rate.
+        /// </summary>
+        /// <param name="LoRaSettings">The LoRa settings to be configured.</param>
+        private void SwitchToCHRX2_SF12BW125(sSettings LoRaSettings)
+        {
+            // Configure to RX2 channel for downlink reception.
+            LoRaSettings.ChannelRx = (byte)CHANNEL.CHRX2;
+            // Set RX2 data rate to SF12 with 125 kHz bandwidth.
+            LoRaSettings.DatarateRx = (byte)DATA_RATES.SF12BW125;
+        }
+
+
+        /// <summary>
+        /// Waits for the specified delay using the provided stopwatch.
+        /// </summary>
+        /// <param name="stopwatch">The stopwatch used to measure elapsed time.</param>
+        /// <param name="previousTime">The previous time recorded.</param>
+        /// <param name="delay">The delay to wait for in milliseconds.</param>
+        private void WaitForDelay(Stopwatch stopwatch, long previousTime, long delay)
+        {
+            while (stopwatch.ElapsedMilliseconds - previousTime < delay)
+            {
+                // Do nothing
+            }
+        }
+
+
+        /// <summary>
+        /// Waits for the specified RX window duration using the provided stopwatch.
+        /// </summary>
+        /// <param name="stopwatch">The stopwatch used to measure elapsed time.</param>
+        /// <param name="previousTime">The previous time recorded.</param>
+        /// <param name="ReceiveDelayX">The delay before the RX window starts in milliseconds.</param>
+        /// <param name="RXXWindow">The duration of the RX window in milliseconds.</param>
+        /// <param name="RxData">The buffer to store received data.</param>
+        /// <param name="sessionData">The LoRa session data.</param>
+        /// <param name="OTAAData">The OTAA data.</param>
+        /// <param name="RxMessage">The received LoRa message.</param>
+        /// <param name="LoRaSettings">The LoRa settings to be used during reception.</param>
+        private void WaitForRXXWindow(Stopwatch stopwatch, long previousTime, long ReceiveDelayX, long RXXWindow, sBuffer RxData, sLoRaSession sessionData, sLoRaOTAA OTAAData, sLoRaMessage RxMessage, sSettings LoRaSettings)
+        {
+            // Wait until the total time elapsed exceeds the sum of ReceiveDelayX and RXXWindow
+            while (stopwatch.ElapsedMilliseconds - previousTime < ReceiveDelayX + RXXWindow)
+            {
+                // Continuously attempt to receive data during the RX window
+                ReceiveData(RxData, sessionData, OTAAData, RxMessage, LoRaSettings);
+            }
+        }
     }
 }
