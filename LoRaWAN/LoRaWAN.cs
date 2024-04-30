@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using System.Runtime;
+using System.Runtime.Remoting.Channels;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -181,9 +182,6 @@ namespace LoRaWAN
             // Initialize Message struct to transmit message
             sLoRaMessage message = new sLoRaMessage();
 
-            sessionData.NwkSKey = key;
-            sessionData.AppSKey = iv;
-
             // MACHeader: Message Authentication Code Header
             message.MACHeader = 0x00;
 
@@ -322,9 +320,6 @@ namespace LoRaWAN
 
             // Initialize Message struct to transmit message
             sLoRaMessage message = new sLoRaMessage();
-
-            // Initialize sessionData Application Security Key for Encrption of the message.
-            sessionData.AppSKey = key;
 
             // MACHeader: Message Authentication Code Header
             message.MACHeader = 0x00;
@@ -499,8 +494,8 @@ namespace LoRaWAN
             else
             {
                 // Set default data rate if out of range
-                LoRaSettings.DatarateTx = (byte)DATA_RATES.SF7BW125;
-                LoRaSettings.DatarateRx = (byte)DATA_RATES.SF7BW125;
+                LoRaSettings.DatarateTx = (byte)DATA_RATES.SF9BW125;
+                LoRaSettings.DatarateRx = (byte)DATA_RATES.SF9BW125;
             }
 
             // Reset RFM command status
@@ -622,6 +617,10 @@ namespace LoRaWAN
             LoRaSettings.ChannelRx = (byte)CHANNEL.CHRX2;
             // Set RX2 data rate to SF12 with 125 kHz bandwidth.
             LoRaSettings.DatarateRx = (byte)DATA_RATES.SF12BW125;
+
+            // Updates the channel and data rate settings on the RFMRegisters inside RFM95 module.
+            rfm95.ChangeChannel((byte)CHANNEL.CHRX2);
+            rfm95.ChangeDataRate((byte)DATA_RATES.SF12BW125);
         }
 
 
