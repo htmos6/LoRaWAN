@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
+using System.Reflection.Emit;
 using System.Runtime.ConstrainedExecution;
 using System.Runtime.Remoting.Channels;
 using System.Text;
@@ -152,11 +153,41 @@ namespace LoRaWAN
     #endregion
 
     /// <summary>
+    /// Enumerates the possible status of a LoRaWAN message.
+    /// </summary>
+    public enum MESSAGE_STATUS
+    {
+        NO_MESSAGE,         // No message is present
+        NEW_MESSAGE,        // New message received
+        CRC_OK,             // CRC (Cyclic Redundancy Check) is OK
+        MIC_OK,             // message Integrity Code (MIC) is OK
+        ADDRESS_OK,         // Address is correct
+        MESSAGE_DONE,       // message processing is completed
+        TIMEOUT,            // Timeout occurred
+        WRONG_MESSAGE       // Received message is incorrect
+    };
+
+
+    /// <summary>
     /// Represents an RFM95 module used for radio frequency communication.
     /// </summary>
     public class RFM95
     {
+        /// <summary> The RFM95 class contains methods that exclusively modify RFMRegisters.</summary>
         public static byte[] RFMRegisters { get; set; } = new byte[256];
+
+
+        public MESSAGE_STATUS SingleReceive(sSettings LoRaSettings)
+        {
+            return MESSAGE_STATUS.NO_MESSAGE;
+        }
+
+        public void ContinuousReceive(sSettings LoRaSettings)
+        {
+
+            ;
+        }
+
 
         public byte Init()
         {
@@ -166,7 +197,7 @@ namespace LoRaWAN
 
             // Check if the version is not 18
             // Checks if the version read from the RFM module is not equal to 18.
-            if (version != 18)
+            if (version != 0)
             {
                 // Return 0 indicating failed initialization
                 // If the version is not equal to 18, returns 0, indicating a failed initialization.
@@ -289,6 +320,61 @@ namespace LoRaWAN
         }
 
 
+        /// <summary>
+        /// Retrieves the status of the received LoRaWAN package.
+        /// </summary>
+        /// <param name="RFMRxPackage">The buffer containing the received LoRaWAN package.</param>
+        /// <returns>The status of the received LoRaWAN package.</returns>
+        public MESSAGE_STATUS GetPackage(sBuffer RFMRxPackage)
+        {
+            // Variable to store RFM interrupts
+            byte RFMInterrupts = 0x00;
+
+            // Variable to store RFM package location
+            byte RFMPackageLocation = 0x00;     
+
+            MESSAGE_STATUS messageStatus = MESSAGE_STATUS.NO_MESSAGE;
+
+            // Read interrupt register to check for incoming messages
+            RFMInterrupts = RFMRegisters.Read(0x12);
+
+            // Check if RX_DONE interrupt is set
+            if ((RFMInterrupts & 0x40) == 0x40)  // If RX_DONE_MASK is set
+            {
+                // Check if CRC is OK
+                if ((RFMInterrupts & 0x20) != 0x20)
+                {
+                    messageStatus = MESSAGE_STATUS.CRC_OK;
+                }
+                else
+                {
+                    // CRC check failed, message is incorrect
+                    messageStatus = MESSAGE_STATUS.WRONG_MESSAGE;
+                }
+            }
+
+            // Read the start position of the received package
+            RFMPackageLocation = RFMRegisters.Read(0x10);
+
+            // Read the length of the received package
+            RFMRxPackage.Counter = RFMRegisters.Read(0x13);
+
+            // Set SPI pointer to the start of the package
+            RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_FIFO_ADDR_PTR, RFMPackageLocation);
+
+            // Read the received package data from the FIFO
+            for (byte i = 0x00; i < RFMRxPackage.Counter; i++)
+            {
+                RFMRxPackage.Data[i] = RFMRegisters.Read((byte)RFM_REGISTERS.RFM_REG_FIFO);
+            }
+
+            // Clear interrupt flags after processing the received package
+            RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_IRQ_FLAGS, RFMInterrupts);
+
+            // Return the status of the received LoRaWAN package
+            return messageStatus;
+        }
+
 
         /// <summary>
         /// Switches the mode of the RFM module.
@@ -305,7 +391,7 @@ namespace LoRaWAN
                 // Get the name of the RFM mode.
                 string RFMModeName = Enum.GetName(typeof(RFM_MODES), RFMMode);
 
-                Console.WriteLine($"RFM-95 mode changed to: LoRa-{RFMModeName}");
+                Console.WriteLine($"RFM95 Mode Changed : LoRa-{RFMModeName}");
             }
             else
             {
@@ -319,7 +405,7 @@ namespace LoRaWAN
                 string RFMModeName = Enum.GetName(typeof(RFM_MODES), RFMMode & 0x7F);
 
                 // Display the name of the RFM Mode.
-                Console.WriteLine($"RFM-95 mode changed to: LoRa-{RFMModeName}");
+                Console.WriteLine($"RFM95 Mode Changed : LoRa-{RFMModeName}");
             }
         }
 
@@ -372,6 +458,7 @@ namespace LoRaWAN
             // Configure the RFM module's PA settings for the specified power level
             // Apply PA BOOST mask
             RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_PA_CONFIG, (byte)(0x80 | (level - 2)));
+            Console.WriteLine($"RFM95 Power Settled : {level-2} dB.");
         }
 
 
@@ -388,6 +475,8 @@ namespace LoRaWAN
 
             // Write the OCP configuration (Apply OCP trim) to the RFM module
             RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_OCP, (byte)(0x20 | (0x1F & ocpTrim)));
+
+            Console.WriteLine($"RFM95 OCP Trim Value Settled : {ocpTrim} mA.");
         }
 
 
@@ -410,7 +499,7 @@ namespace LoRaWAN
         /// </summary>
         /// <param name="address">Register address to read from.</param>
         /// <returns>Data read from the register.</returns>
-        public static byte Read(byte address)
+        public byte Read(byte address)
         {
             byte data = 0x00;
 
@@ -434,7 +523,7 @@ namespace LoRaWAN
         /// </summary>
         /// <param name="address">Register address to write to.</param>
         /// <param name="data">Data to write to the register.</param>
-        public static void Write(byte address, byte data)
+        public void Write(byte address, byte data)
         {
             // Create a client to connect to the gateway.
 
@@ -451,7 +540,7 @@ namespace LoRaWAN
         /// Changes the channel of the RFM module.
         /// </summary>
         /// <param name="channel">The new channel to set for the RFM module.</param>
-        public static void ChangeChannel(byte channel)
+        public void ChangeChannel(byte channel)
         {
             // In EU_868 v1.02, the same frequency is used for uplink and downlink.
             if (channel <= 0x08)
@@ -461,46 +550,8 @@ namespace LoRaWAN
                     // Write the frequency values to the corresponding RFM registers.
                     RFMRegisters.Write((byte)(RFM_REGISTERS.RFM_REG_FR_MSB + i), LoraFrequency[channel, i]);
                 }
-            }
-        }
 
-
-        /// <summary>
-        /// Changes the spreading factor and bandwidth of the RFM module.
-        /// </summary>
-        /// <param name="spreadingFactor">The spreading factor to set. Should be in the range {6, 7, 8, 9, 10, 11, 12}.</param>
-        /// <param name="bandWidth">The bandwidth to set. Should be one of the following values: 
-        /// <list type="table">
-        ///     <item><term>0x00</term><description> 7.8kHz</description></item>
-        ///     <item><term>0x01</term><description> 10.4kHz</description></item>
-        ///     <item><term>0x02</term><description> 15.6kHz</description></item>
-        ///     <item><term>0x03</term><description> 20.8kHz</description></item>
-        ///     <item><term>0x04</term><description> 31.25kHz</description></item>
-        ///     <item><term>0x05</term><description> 41.7kHz</description></item>
-        ///     <item><term>0x06</term><description> 62.5kHz</description></item>
-        ///     <item><term>0x07</term><description> 125kHz</description></item>
-        ///     <item><term>0x08</term><description> 250kHz</description></item>
-        ///     <item><term>0x09</term><description> 500kHz</description></item>
-        /// </list>
-        /// </param>
-        public static void ChangeSFandBW(byte spreadingFactor, byte bandWidth)
-        {
-            // Set Cyclic Redundancy Check (CRC) On and specify the spreading factor.
-            RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_MODEM_CONFIG2, (byte)((spreadingFactor << 4) | 0b0100));
-
-            // Set coding rate and specify the bandwidth.
-            RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_MODEM_CONFIG1, (byte)((bandWidth << 4) | 0x02));
-
-            // Check if the spreading factor is greater than 10.
-            if (spreadingFactor > 10)
-            {
-                // Enable automatic gain control (AGC) and low data rate optimization.
-                RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_MODEM_CONFIG3, 0b1100);
-            }
-            else
-            {
-                // Set AGC according to LnaGain register and enable low data rate optimization.
-                RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_MODEM_CONFIG3, 0b0100);
+                Console.WriteLine($"RFM95 Channel Settled Channel : {Enum.GetName(typeof(CHANNEL), channel)}.");
             }
         }
 
@@ -517,10 +568,10 @@ namespace LoRaWAN
         ///     <item><term>0x04</term><description> SF8BW125</description></item>
         ///     <item><term>0x05</term><description> SF7BW125</description></item>
         ///     <item><term>0x06</term><description> SF7BW250</description></item>
-        ///     <item><term>Default</term><description> SF7BW125</description></item>
+        ///     <item><term>Default</term><description> SF9BW125</description></item>
         /// </list>
         /// </param>
-        public static void ChangeDataRate(byte dataRate)
+        public void ChangeDataRate(byte dataRate)
         {
             switch (dataRate)
             {
@@ -545,9 +596,51 @@ namespace LoRaWAN
                 case 0x06:  // SF7BW250
                     ChangeSFandBW(7, 0x08);
                     break;
-                default: // SF7BW125
-                    ChangeSFandBW(7, 0x07);
+                default: // SF9BW125
+                    ChangeSFandBW(9, 0x07);
                     break;
+            }
+
+            Console.WriteLine($"RFM95 Data Rate Changed : {Enum.GetName(typeof(DATA_RATES), dataRate)}.");
+        }
+
+
+        /// <summary>
+        /// Changes the spreading factor and bandwidth of the RFM module.
+        /// </summary>
+        /// <param name="spreadingFactor">The spreading factor to set. Should be in the range {6, 7, 8, 9, 10, 11, 12}.</param>
+        /// <param name="bandWidth">The bandwidth to set. Should be one of the following values: 
+        /// <list type="table">
+        ///     <item><term>0x00</term><description> 7.8kHz</description></item>
+        ///     <item><term>0x01</term><description> 10.4kHz</description></item>
+        ///     <item><term>0x02</term><description> 15.6kHz</description></item>
+        ///     <item><term>0x03</term><description> 20.8kHz</description></item>
+        ///     <item><term>0x04</term><description> 31.25kHz</description></item>
+        ///     <item><term>0x05</term><description> 41.7kHz</description></item>
+        ///     <item><term>0x06</term><description> 62.5kHz</description></item>
+        ///     <item><term>0x07</term><description> 125kHz</description></item>
+        ///     <item><term>0x08</term><description> 250kHz</description></item>
+        ///     <item><term>0x09</term><description> 500kHz</description></item>
+        /// </list>
+        /// </param>
+        private void ChangeSFandBW(byte spreadingFactor, byte bandWidth)
+        {
+            // Set Cyclic Redundancy Check (CRC) On and specify the spreading factor.
+            RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_MODEM_CONFIG2, (byte)((spreadingFactor << 4) | 0b0100));
+
+            // Set coding rate and specify the bandwidth.
+            RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_MODEM_CONFIG1, (byte)((bandWidth << 4) | 0x02));
+
+            // Check if the spreading factor is greater than 10.
+            if (spreadingFactor > 10)
+            {
+                // Enable automatic gain control (AGC) and low data rate optimization.
+                RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_MODEM_CONFIG3, 0b1100);
+            }
+            else
+            {
+                // Set AGC according to LnaGain register and enable low data rate optimization.
+                RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_MODEM_CONFIG3, 0b0100);
             }
         }
 
@@ -562,7 +655,7 @@ namespace LoRaWAN
         /// within specific geographic regions for LoRaWAN communication. 
         /// These plans define which frequencies and channels are available for use by LoRaWAN devices in a particular region.
         /// </remarks>
-        private static readonly byte[,] LoraFrequency = new byte[,]
+        private readonly byte[,] LoraFrequency = new byte[,]
         {
             { 0xD9, 0x06, 0x8B }, //Channel [0], 868.1 MHz / 61.035 Hz = 14222987 = 0xD9068B
             { 0xD9, 0x13, 0x58 }, //Channel [1], 868.3 MHz / 61.035 Hz = 14226264 = 0xD91358

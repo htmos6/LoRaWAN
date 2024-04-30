@@ -5,6 +5,7 @@ using System.Net.Sockets;
 using System.Net;
 using System.Text;
 using System.Threading.Tasks;
+using System.Diagnostics;
 
 namespace LoRaWAN
 {
@@ -12,14 +13,90 @@ namespace LoRaWAN
     {
         static void Main()
         {
-            var key = new byte[16] { 0x69, 0x93, 0xAB, 0x4F, 0x2A, 0xC1, 0x0F, 0x2D, 0x3A, 0x5B, 0x21, 0x8C, 0x4E, 0x97, 0xE9, 0x6C };
-            var iv = new byte[16] { 0x8A, 0x57, 0x6F, 0x0C, 0x45, 0x83, 0x28, 0xE0, 0x9E, 0x41, 0x23, 0x14, 0x36, 0xD7, 0xB7, 0x55 };
+            
+            byte[] key = new byte[16] { 0x69, 0x93, 0xAB, 0x4F, 0x2A, 0xC1, 0x0F, 0x2D, 0x3A, 0x5B, 0x21, 0x8C, 0x4E, 0x97, 0xE9, 0x6C };
+            byte[] iv = new byte[16] { 0x8A, 0x57, 0x6F, 0x0C, 0x45, 0x83, 0x28, 0xE0, 0x9E, 0x41, 0x23, 0x14, 0x36, 0xD7, 0xB7, 0x55 };
 
+            /// <summary>
+            /// Initializes a new LoRa session with the provided keys and device address.
+            /// </summary>
+            /// <remarks>
+            /// Initializes a new LoRa session with the given network session key (NwkSKey), application session key (AppSKey),
+            /// and device address (DevAddr).
+            /// </remarks>
+            sLoRaSession sessionData = new sLoRaSession()
+            {
+                NwkSKey = key,                                     // Network session key
+                AppSKey = iv,                                      // Application session key
+                DevAddr = new byte[4] { 0x00, 0x00, 0x00, 0x00 }   // Device address
+            };
+
+            /// <summary>
+            /// Initializes LoRa settings for the device.
+            /// </summary>
+            /// <remarks>
+            /// Initializes LoRa settings including the device class (MoteClass), RX data rate (DatarateRx), RX channel (ChannelRx),
+            /// TX data rate (DatarateTx), TX channel (ChannelTx), confirmation status (Confirm), and channel hopping behavior (ChannelHopping).
+            /// </remarks>
+            sSettings LoRaSettings = new sSettings()
+            {
+                MoteClass = 0x00,           // Device class: 0x00 for Type A, 0x01 for Type C
+                DatarateRx = 0x03,          // RX data rate: SF9 BW 125 kHz
+                ChannelRx = 0x08,           // RX channel: Receiver Channel
+                DatarateTx = 0x00,          // TX data rate: SF12 BW 125 kHz
+                ChannelTx = 0x00,           // TX channel: Channel0
+                Confirm = 0x00,             // Confirmation status: 0x00 for unconfirmed, 0x01 for confirmed
+                ChannelHopping = 0x00       // Channel hopping behavior: 0x00 for no channel hopping, 0x01 for channel hopping
+            };
+
+            /// <summary>
+            /// Initializes transmit data buffer.
+            /// </summary>
+            /// <remarks>
+            /// Initializes transmit data buffer with an empty byte array and zero counter.
+            /// </remarks>
+            sBuffer TxData = new sBuffer()
+            {
+                Data = Encoding.UTF8.GetBytes("Hello World!"),    // Transmit data
+                Counter = 12                // Counter
+            };
+
+            /// <summary>
+            /// Initializes receive data buffer.
+            /// </summary>
+            /// <remarks>
+            /// Initializes receive data buffer with an empty byte array and zero counter.
+            /// </remarks>
+            sBuffer RxData = new sBuffer()
+            {
+                Data = new byte[] { 0x00 },    // Receive data
+                Counter = 0x00                 // Counter
+            };
+
+            /// <summary>
+            /// Initializes a new LoRa message.
+            /// </summary>
+            /// <remarks>
+            /// Initializes a new LoRa message with the specified direction.
+            /// </remarks>
+            sLoRaMessage RxMessage = new sLoRaMessage()
+            {
+                Direction = 0x01    // Direction: 0x01 for uplink, 0x02 for downlink
+            };
+
+            LoRaWAN loRaWAN = new LoRaWAN(TxData, RxData, RxMessage, sessionData, new sLoRaOTAA(), LoRaSettings, RFM_COMMAND.NO_RFM_COMMAND, MESSAGE_TYPES.MSG_UP);
+            loRaWAN.rfm95.Init();
+            loRaWAN.Cycle();
+            loRaWAN.SendData();
+            Console.ReadKey();
+
+            /*
             // Define the input string
             string message = "Hello World!";
 
+
             // Convert the input string to byte array using UTF-8 encoding
-            byte[] input = Encoding.UTF8.GetBytes(message);
+            byte[] input = Encoding.UTF8.GetBytes("Hello World!");
 
             var crypto = new AesCryptographyService();
 
@@ -28,11 +105,11 @@ namespace LoRaWAN
 
             var str = BitConverter.ToString(encrypted).Replace("-", "");
 
-           
+         
             Console.WriteLine(str);
             Console.WriteLine(Encoding.ASCII.GetString(crypto.Decrypt(encrypted, key, iv)));
             Console.WriteLine(BitConverter.ToString(crypto.CalculateMIC(encrypted, key)).Replace("-", ""));
-
+  */
             RFM95 rfm95 = new RFM95();
 
             rfm95.SwitchMode((byte)RFM_MODES.RFM_MODE_SLEEP);
@@ -52,45 +129,3 @@ namespace LoRaWAN
         }
     }
 }
-
-
-/*
- * setup
- // define multi-channel sending
-  lora.setChannel(MULTI);
-  // set datarate
-  lora.setDatarate(SF7BW125);
-  if(!lora.begin())
-  {
-    Serial.println("Failed");
-    Serial.println("Check your radio");
-    while(true);
-  }
-
-  // Optional set transmit power. If not set default is +17 dBm.
-  // Valid options are: -80, 1 to 17, 20 (dBm).
-  // For safe operation in 20dBm: your antenna must be 3:1 VWSR or better
-  // and respect the 1% duty cycle.
-
-  // lora.setPower(17);
-
-
-void loop()
-{
-  Serial.println("Sending LoRa Data...");
-  lora.sendData(loraData, sizeof(loraData), lora.frameCounter);
-  // Optionally set the Frame Port (1 to 255)
-  // uint8_t framePort = 1;
-  // lora.sendData(loraData, sizeof(loraData), lora.frameCounter, framePort);
-  Serial.print("Frame Counter: ");Serial.println(lora.frameCounter);
-  lora.frameCounter++;
-
-  // blink LED to indicate packet sent
-  digitalWrite(LED_BUILTIN, HIGH);
-  delay(1000);
-  digitalWrite(LED_BUILTIN, LOW);
-  
-  Serial.println("delaying...");
-  delay(sendInterval * 1000);
-}
- */
