@@ -241,7 +241,7 @@ namespace LoRaWAN
 
             // Set data counter to 8 to indicate the number of bytes added so far
             RFMPackage.Counter = 8;
-
+            
             // If there is data, load the FramePort field, encrypt the data, and load it into the RFM package
             if (TxData.Counter > 0x00)
             {
@@ -255,6 +255,7 @@ namespace LoRaWAN
 
                 // Encrypt the data using AES256 algorithm
                 TxData.Data = aes256.Encrypt(TxData.Data, sessionData.NwkSKey, sessionData.AppSKey);
+                TxData.Counter = (byte)TxData.Data.Length;
 
                 Console.WriteLine($"Encrypted Message Package: {Encoding.ASCII.GetString(TxData.Data)}");
 
@@ -379,6 +380,7 @@ namespace LoRaWAN
 
                 // Encrypt the data using AES256 algorithm
                 TxAckData.Data = aes256.Encrypt(TxAckData.Data, sessionData.NwkSKey, sessionData.AppSKey);
+                TxAckData.Counter = (byte)TxAckData.Data.Length;
 
                 Console.WriteLine($"Encrypted Message ACK: {Encoding.ASCII.GetString(TxAckData.Data)}");
 

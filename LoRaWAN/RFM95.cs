@@ -302,11 +302,12 @@ namespace LoRaWAN
         {
             EndDevice LoRaEndDevice = new EndDevice(sslCertificate, sslPassword);
 
-            string ipAddress = $"{(int)RFMTxPackage.Data[4]}.{(int)RFMTxPackage.Data[3]}.{(int)RFMTxPackage.Data[2]}.{(int)RFMTxPackage.Data[1]}";
+            string ipAddress = "127.0.0.1";
             int port = LoRaSettings.Mport;
 
             // ....... MIC0, MIC1, MIC2, MIC3, (emptyLastOfFirstId)
             int emptyLastOfFirstId = RFMTxPackage.Counter;
+
             string message = BitConverter.ToString(RFMTxPackage.Data.Skip(9).Take(emptyLastOfFirstId - 4 - 8 - 1).ToArray()) + "<EOF>";
 
             return LoRaEndDevice.SendFramesToServer(ipAddress, port, message);

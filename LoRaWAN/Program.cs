@@ -28,7 +28,7 @@ namespace LoRaWAN
             {
                 NwkSKey = key,                                     // Network session key
                 AppSKey = iv,                                      // Application session key
-                DevAddr = new byte[4] { 0x7F, 0x00, 0x00, 0x01 }   // Device address 127.0.0.1
+                DevAddr = new byte[4] { 0x00, 0x00, 0x00, 0x00 }   // Device address Specific to node
             };
 
             /// <summary>
@@ -71,7 +71,7 @@ namespace LoRaWAN
             sBuffer TxAckData = new sBuffer()
             {
                 Data = Encoding.UTF8.GetBytes("ACK-Received!"),    // Transmit data
-                Counter = 13                // Counter
+                Counter = 13               // Counter
             };
 
             /// <summary>
@@ -97,9 +97,9 @@ namespace LoRaWAN
                 Direction = 0x01    // Direction: 0x01 for uplink, 0x02 for downlink
             };
 
-            LoRaWAN loRaWAN = new LoRaWAN(TxData, RxData, RxMessage, sessionData, new sLoRaOTAA(), LoRaSettings, TxAckData, RFM_COMMAND.NO_RFM_COMMAND, MESSAGE_TYPES.MSG_UP);
+            LoRaWAN loRaWAN = new LoRaWAN(TxData, RxData, RxMessage, sessionData, new sLoRaOTAA(), LoRaSettings, TxAckData, RFM_COMMAND.NEW_RFM_COMMAND, MESSAGE_TYPES.MSG_UP);
             loRaWAN.rfm95.Init();
-            loRaWAN.Cycle();
+            //loRaWAN.Cycle();
             loRaWAN.SendData();
             loRaWAN.SendACK();
             Console.ReadKey();
@@ -123,7 +123,7 @@ namespace LoRaWAN
             Console.WriteLine(str);
             Console.WriteLine(Encoding.ASCII.GetString(crypto.Decrypt(encrypted, key, iv)));
             Console.WriteLine(BitConverter.ToString(crypto.CalculateMIC(encrypted, key)).Replace("-", ""));
-  */
+            */
             RFM95 rfm95 = new RFM95();
 
             rfm95.SwitchMode((byte)RFM_MODES.RFM_MODE_SLEEP);
