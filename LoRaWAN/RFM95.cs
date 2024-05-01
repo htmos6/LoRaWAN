@@ -177,81 +177,6 @@ namespace LoRaWAN
         public static byte[] RFMRegisters { get; set; } = new byte[256];
 
 
-        public MESSAGE_STATUS SingleReceive(sSettings LoRaSettings)
-        {
-            /*
-            if (true)
-            {
-                // TCP provides input                
-                return MESSAGE_STATUS.NEW_MESSAGE;
-            }
-            else
-            {
-                // TCP provides no input                
-                return MESSAGE_STATUS.NO_MESSAGE;
-            }
-            */
-
-            MESSAGE_STATUS messageStatus = MESSAGE_STATUS.NO_MESSAGE;
-
-            //Change DIO 0 back to RxDone
-            RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_DIO_MAPPING1, 0x00);
-
-            //Invert IQ Back
-            RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_INVERT_IQ, 0x67);
-            RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_INVERT_IQ2, 0x19);
-
-            //Change Datarate
-            ChangeDataRate(LoRaSettings.DatarateRx);
-
-            //Change Channel
-            ChangeChannel(LoRaSettings.ChannelRx);
-
-            //Switch RFM to Single reception
-            SwitchMode((byte)RFM_MODES.RFM_MODE_RXSINGLE);
-
-            if (LoRaSettings.DatarateRx == 1)
-            {
-                // TCP provides input                
-                return MESSAGE_STATUS.NEW_MESSAGE;
-            }
-            else
-            {
-                // TCP provides no input                
-                return MESSAGE_STATUS.TIMEOUT;
-            }
-        }
-
-        public void ContinuousReceive(sSettings LoRaSettings)
-        {
-            //Change DIO 0 back to RxDone and DIO 1 to rx timeout
-            RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_DIO_MAPPING1, 0x00);
-
-            //Invert IQ Back
-            RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_INVERT_IQ, 0x67);
-            RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_INVERT_IQ2, 0x19);
-
-            // Change Datarate and channel.
-            // This depends on regional parameters
-            ChangeDataRate((byte)DATA_RATES.SF12BW125);
-            ChangeChannel((byte)CHANNEL.CHRX2);
-
-            //Switch to continuous receive
-            SwitchMode((byte)RFM_MODES.RFM_MODE_RXCONT);
-
-            if (LoRaSettings.DatarateRx == 1)
-            {
-                // TCP provides input                
-                // LOOP TCP/IP
-            }
-            else
-            {
-                // TCP provides no input                
-                // LOOP TCP/IPS
-            }
-        }
-
-
         public byte Init()
         {
             // Read the version information from register 0x42
@@ -436,6 +361,78 @@ namespace LoRaWAN
 
             // Return the status of the received LoRaWAN package
             return messageStatus;
+        }
+
+
+        /// <summary>
+        /// Configures the RFM95 module for single reception mode and waits for a message.
+        /// </summary>
+        /// <param name="LoRaSettings">The LoRaWAN settings for reception.</param>
+        /// <returns>The status of the reception operation.</returns>
+        public MESSAGE_STATUS SingleReceive(sSettings LoRaSettings)
+        {
+            // Change DIO 0 back to RxDone
+            RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_DIO_MAPPING1, 0x00);
+
+            // Invert IQ Back
+            RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_INVERT_IQ, 0x67);
+            RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_INVERT_IQ2, 0x19);
+
+            // Change Datarate
+            ChangeDataRate(LoRaSettings.DatarateRx);
+
+            // Change Channel
+            ChangeChannel(LoRaSettings.ChannelRx);
+
+            // Switch RFM to Single reception
+            SwitchMode((byte)RFM_MODES.RFM_MODE_RXSINGLE);
+
+            // Check if TCP provides input based on the datarate
+            if (LoRaSettings.DatarateRx == 1)
+            {
+                // TCP provides input
+                return MESSAGE_STATUS.NEW_MESSAGE;
+            }
+            else
+            {
+                // TCP provides no input
+                return MESSAGE_STATUS.TIMEOUT;
+            }
+        }
+
+
+        /// <summary>
+        /// Configures the RFM95 module for continuous reception mode.
+        /// </summary>
+        /// <param name="LoRaSettings">The LoRaWAN settings for reception.</param>
+        public void ContinuousReceive(sSettings LoRaSettings)
+        {
+            // Change DIO 0 back to RxDone and DIO 1 to rx timeout
+            RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_DIO_MAPPING1, 0x00);
+
+            // Invert IQ Back
+            RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_INVERT_IQ, 0x67);
+            RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_INVERT_IQ2, 0x19);
+
+            // Change Datarate and channel.
+            // This depends on regional parameters
+            ChangeDataRate((byte)DATA_RATES.SF12BW125);
+            ChangeChannel((byte)CHANNEL.CHRX2);
+
+            // Switch to continuous receive
+            SwitchMode((byte)RFM_MODES.RFM_MODE_RXCONT);
+
+            // Check if TCP provides input based on the datarate
+            if (LoRaSettings.DatarateRx == 1)
+            {
+                // TCP provides input
+                // LOOP TCP/IP
+            }
+            else
+            {
+                // TCP provides no input
+                // LOOP TCP/IPS
+            }
         }
 
 
