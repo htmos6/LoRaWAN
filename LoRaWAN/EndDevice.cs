@@ -211,7 +211,8 @@ namespace LoRaWAN
         /// <param name="ipAddress">The IP address of the server.</param>
         /// <param name="port">The port number to connect to on the server.</param>
         /// <param name="message">The message to send to the server.</param>
-        public void SendFramesToServer(string ipAddress, int port, string message)
+        /// <returns>True if message sent successfully.</returns>
+        public bool SendFramesToServer(string ipAddress, int port, string message)
         {
             Console.WriteLine($"\n\n\n\t************ EndDevice Network Session Start ************\n");
 
@@ -228,21 +229,24 @@ namespace LoRaWAN
                     {
                         // Receive the response from the server
                         _ = this.ReceiveResponse();
+
+                        Console.WriteLine($"\n\t************ EndDevice Network Session End ************\n\n");
+                        return true;
                     }
 
                     // Disconnect from the server
                     DisconnectFromServer();
 
                     Console.WriteLine($"\n\t************ EndDevice Network Session End ************\n\n\n");
-
-                    return;
                 }
             }
 
             stopwatch.Stop();
 
-            Console.WriteLine("\t- EndDevice could not Established a Connection with Gateway!\nConnection Timeout!");
+            Console.WriteLine("\t- EndDevice could not Established a Connection with Gateway!\n\t- Connection Timeout!");
             Console.WriteLine($"\n\t************ EndDevice Network Session End ************\n\n");
+
+            return false;
         }
 
     }

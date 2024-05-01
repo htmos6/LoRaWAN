@@ -36,6 +36,7 @@ namespace LoRaWAN
         private sLoRaSession sessionData;
         private sLoRaOTAA OTAAData;
         private sSettings LoRaSettings;
+        private sBuffer TxAckData;
 
         RFM_COMMAND RFMCommandStatus;
         MESSAGE_TYPES upMessageType;
@@ -57,9 +58,10 @@ namespace LoRaWAN
         /// <param name="sessionData">The LoRaWAN session data.</param>
         /// <param name="OTAAData">The OTAA (Over-the-Air Activation) data.</param>
         /// <param name="LoRaSettings">The LoRaWAN settings.</param>
+        /// <param name="TxAckData">The buffer containing ACK data to be transmitted.</param>
         /// <param name="RFMCommandStatus">The RFM command status.</param>
         /// <param name="upMessageType">The type of message to be transmitted.</param>
-        public LoRaWAN(sBuffer TxData, sBuffer RxData, sLoRaMessage RxMessage, sLoRaSession sessionData, sLoRaOTAA OTAAData, sSettings LoRaSettings, RFM_COMMAND RFMCommandStatus, MESSAGE_TYPES upMessageType)
+        public LoRaWAN(sBuffer TxData, sBuffer RxData, sLoRaMessage RxMessage, sLoRaSession sessionData, sLoRaOTAA OTAAData, sSettings LoRaSettings, sBuffer TxAckData, RFM_COMMAND RFMCommandStatus, MESSAGE_TYPES upMessageType)
         {
             this.TxData = TxData;                       // Data to be transmitted
             this.RxData = RxData;                       // Buffer to store received data
@@ -67,6 +69,7 @@ namespace LoRaWAN
             this.sessionData = sessionData;             // LoRaWAN session data
             this.OTAAData = OTAAData;                   // OTAA data
             this.LoRaSettings = LoRaSettings;           // LoRaWAN settings
+            this.TxAckData = TxAckData;                 // ACK Data to be transmitted
             this.RFMCommandStatus = RFMCommandStatus;   // RFM command status
             this.upMessageType = upMessageType;         // Type of message to be transmitted
 
@@ -248,12 +251,12 @@ namespace LoRaWAN
                 // Increment the RFM package counter to account for the additional byte
                 RFMPackage.Counter++;
 
-                Console.WriteLine($"Raw Message : {Encoding.ASCII.GetString(TxData.Data)}");
+                Console.WriteLine($"Raw Message Package: {Encoding.ASCII.GetString(TxData.Data)}");
 
                 // Encrypt the data using AES256 algorithm
                 TxData.Data = aes256.Encrypt(TxData.Data, sessionData.NwkSKey, sessionData.AppSKey);
 
-                Console.WriteLine($"Encrypted Message : {Encoding.ASCII.GetString(TxData.Data)}");
+                Console.WriteLine($"Encrypted Message Package: {Encoding.ASCII.GetString(TxData.Data)}");
 
                 // Load encrypted data into RFM package data
                 for (byte i = 0; i < TxData.Counter; i++)
@@ -309,7 +312,7 @@ namespace LoRaWAN
         /// <summary>
         /// Sends ACK using LoRa protocol.
         /// </summary>
-        void SendACK()
+        public void SendACK()
         {
             // Initialize RFM buffer
             byte[] RFMData = new byte[MAX_UPLINK_PAYLOAD_SIZE + 65];
@@ -364,7 +367,7 @@ namespace LoRaWAN
             RFMPackage.Counter = 8;
 
             // If there is data, load the FramePort field, encrypt the data, and load it into the RFM package
-            if (TxData.Counter > 0x00)
+            if (TxAckData.Counter > 0x00)
             {
                 // Load Frame port field into RFM package data
                 RFMPackage.Data[8] = 0; // Mport: Message port
@@ -372,18 +375,22 @@ namespace LoRaWAN
                 // Increment the RFM package counter to account for the additional byte
                 RFMPackage.Counter++;
 
+                Console.WriteLine($"Raw Message ACK: {Encoding.ASCII.GetString(TxAckData.Data)}");
+
                 // Encrypt the data using AES256 algorithm
-                TxData.Data = aes256.Encrypt(TxData.Data, sessionData.NwkSKey, sessionData.AppSKey);
+                TxAckData.Data = aes256.Encrypt(TxAckData.Data, sessionData.NwkSKey, sessionData.AppSKey);
+
+                Console.WriteLine($"Encrypted Message ACK: {Encoding.ASCII.GetString(TxAckData.Data)}");
 
                 // Load encrypted data into RFM package data
-                for (byte i = 0; i < TxData.Counter; i++)
+                for (byte i = 0; i < TxAckData.Counter; i++)
                 {
-                    RFMPackage.Data[RFMPackage.Counter++] = TxData.Data[i];
+                    RFMPackage.Data[RFMPackage.Counter++] = TxAckData.Data[i];
                 }
             }
 
             // Calculate Message Integrity Code (MIC) for the transmitted data
-            byte[] MICData = aes256.CalculateMIC(TxData.Data, sessionData.NwkSKey);
+            byte[] MICData = aes256.CalculateMIC(TxAckData.Data, sessionData.NwkSKey);
 
             // Load MIC into the RFM package data
             for (byte i = 0; i < 4; i++)

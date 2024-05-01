@@ -63,6 +63,18 @@ namespace LoRaWAN
             };
 
             /// <summary>
+            /// Initializes transmit data buffer for Acknowledgement.
+            /// </summary>
+            /// <remarks>
+            /// Initializes transmit data buffer with an empty byte array and zero counter.
+            /// </remarks>
+            sBuffer TxAckData = new sBuffer()
+            {
+                Data = Encoding.UTF8.GetBytes("ACK-Received!"),    // Transmit data
+                Counter = 13                // Counter
+            };
+
+            /// <summary>
             /// Initializes receive data buffer.
             /// </summary>
             /// <remarks>
@@ -85,10 +97,11 @@ namespace LoRaWAN
                 Direction = 0x01    // Direction: 0x01 for uplink, 0x02 for downlink
             };
 
-            LoRaWAN loRaWAN = new LoRaWAN(TxData, RxData, RxMessage, sessionData, new sLoRaOTAA(), LoRaSettings, RFM_COMMAND.NO_RFM_COMMAND, MESSAGE_TYPES.MSG_UP);
+            LoRaWAN loRaWAN = new LoRaWAN(TxData, RxData, RxMessage, sessionData, new sLoRaOTAA(), LoRaSettings, TxAckData, RFM_COMMAND.NO_RFM_COMMAND, MESSAGE_TYPES.MSG_UP);
             loRaWAN.rfm95.Init();
             loRaWAN.Cycle();
             loRaWAN.SendData();
+            loRaWAN.SendACK();
             Console.ReadKey();
 
             /*

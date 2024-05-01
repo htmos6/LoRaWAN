@@ -298,7 +298,7 @@ namespace LoRaWAN
 
 
         #region POST
-        public void POST(sBuffer RFMTxPackage, sSettings LoRaSettings)
+        public bool POST(sBuffer RFMTxPackage, sSettings LoRaSettings)
         {
             EndDevice LoRaEndDevice = new EndDevice(sslCertificate, sslPassword);
 
@@ -309,7 +309,7 @@ namespace LoRaWAN
             int emptyLastOfFirstId = RFMTxPackage.Counter;
             string message = BitConverter.ToString(RFMTxPackage.Data.Skip(9).Take(emptyLastOfFirstId - 4 - 8 - 1).ToArray()) + "<EOF>";
 
-            LoRaEndDevice.SendFramesToServer(ipAddress, port, message);
+            return LoRaEndDevice.SendFramesToServer(ipAddress, port, message);
         }
         #endregion
 
@@ -365,12 +365,18 @@ namespace LoRaWAN
             // Wait for TxDone signal
             Thread.Sleep(2000);
 
-            POST(RFMTxPackage, LoRaSettings);
+            if (POST(RFMTxPackage, LoRaSettings))
+            {
+                // Clear interrupt flag
+                RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_IRQ_FLAGS, 0x08);
 
-            // Clear interrupt flag
-            RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_IRQ_FLAGS, 0x08);
+                Console.WriteLine($"\n\n- Package Sent to Gateway Successfully!\n");
+            }
+            else
+            {
+                Console.WriteLine($"\n\n- Package did not Sent to Gateway Successfully!\n");
+            }
 
-            Console.WriteLine($"\n\n- Package Sent to Gateway Successfully!\n");
             Console.WriteLine($"\n************ RFM95 Send Package Updates End ************\n\n\n");
         }
         #endregion
