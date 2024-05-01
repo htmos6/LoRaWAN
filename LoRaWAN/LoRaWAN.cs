@@ -267,7 +267,7 @@ namespace LoRaWAN
             }
 
             // Calculate Message Integrity Code (MIC) for the transmitted data
-            byte[] MICData = aes256.CalculateMIC(TxData.Data, sessionData.NwkSKey);
+            message.MIC = aes256.CalculateMIC(TxData.Data, sessionData.NwkSKey);
 
             // Load MIC into the RFM package data
             for (byte i = 0; i < 4; i++)
@@ -392,7 +392,7 @@ namespace LoRaWAN
             }
 
             // Calculate Message Integrity Code (MIC) for the transmitted data
-            byte[] MICData = aes256.CalculateMIC(TxAckData.Data, sessionData.NwkSKey);
+            message.MIC = aes256.CalculateMIC(TxAckData.Data, sessionData.NwkSKey);
 
             // Load MIC into the RFM package data
             for (byte i = 0; i < 4; i++)

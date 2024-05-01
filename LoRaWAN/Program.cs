@@ -101,8 +101,8 @@ namespace LoRaWAN
             loRaWAN.rfm95.Init();
             //loRaWAN.Cycle();
             loRaWAN.SendData();
-            loRaWAN.SendACK();
-            Console.ReadKey();
+            Console.ReadKey ();
+            //loRaWAN.SendACK();
 
             /*
             // Define the input string
@@ -124,12 +124,6 @@ namespace LoRaWAN
             Console.WriteLine(Encoding.ASCII.GetString(crypto.Decrypt(encrypted, key, iv)));
             Console.WriteLine(BitConverter.ToString(crypto.CalculateMIC(encrypted, key)).Replace("-", ""));
             */
-            RFM95 rfm95 = new RFM95();
-
-            rfm95.SwitchMode((byte)RFM_MODES.RFM_MODE_SLEEP);
-
-
-            Console.ReadKey();
 
             /*
             string sslCertificate = "C:\\Users\\Legion\\projects\\LoRaWAN-Server\\LoRaWAN.pfx";

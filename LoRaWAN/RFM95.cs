@@ -308,7 +308,8 @@ namespace LoRaWAN
             // ....... MIC0, MIC1, MIC2, MIC3, (emptyLastOfFirstId)
             int emptyLastOfFirstId = RFMTxPackage.Counter;
 
-            string message = BitConverter.ToString(RFMTxPackage.Data.Skip(9).Take(emptyLastOfFirstId - 4 - 8 - 1).ToArray()) + "<EOF>";
+            string message = BitConverter.ToString(RFMTxPackage.Data.Skip(9).Take(emptyLastOfFirstId - 8 - 1).ToArray()) + "<EOF>";
+            var mic = BitConverter.ToString(RFMTxPackage.Data.Skip(emptyLastOfFirstId-4).Take(4).ToArray());
 
             return LoRaEndDevice.SendFramesToServer(ipAddress, port, message);
         }
