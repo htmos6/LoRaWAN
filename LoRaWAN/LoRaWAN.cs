@@ -307,179 +307,6 @@ namespace LoRaWAN
 
 
         /// <summary>
-        /// Receives LoRaWAN data and processes it.
-        /// </summary>
-        /// <param name="message">The received LoRaWAN message.</param>
-        void ReceiveData(sLoRaMessage message)
-        {
-            // Initialize RFM buffer for storing received data
-            byte[] RFMData = new byte[MAX_DOWNLINK_PAYLOAD_SIZE + 65];
-            sBuffer RFMPackage = new sBuffer() { Data = RFMData, Counter = 0x00 };
-
-            // Variables for storing check results and data properties
-            byte MICCheck;          // MIC check result
-            byte addressCheck;      // Address check result
-            byte frameOptionsLength;// Length of frame options field
-            byte dataLocation;      // Data location within the RFM package
-
-            // Initialize message status
-            MESSAGE_STATUS messageStatus = MESSAGE_STATUS.NO_MESSAGE;
-
-            // If it is a type A device, switch RFM to single receive mode
-            if (LoRaSettings.MoteClass == (byte)DEVICE_CLASS_TYPES.CLASS_A)
-            {
-                // Set message status to result of single receive operation
-                messageStatus = rfm95.SingleReceive(LoRaSettings);
-            }
-            else
-            {
-                // For non-type A devices, switch RFM to standby mode
-                rfm95.SwitchMode((byte)RFM_MODES.RFM_MODE_STANDBY);
-
-                // Set message status to indicate new message reception
-                messageStatus = MESSAGE_STATUS.NEW_MESSAGE;
-            }
-
-            // If there is a message received, get the data from the RFM
-            if (messageStatus == MESSAGE_STATUS.NEW_MESSAGE)
-            {
-                // Get the package from RFM
-                messageStatus = rfm95.GetPackage(RFMPackage);
-
-                // If it's a Class C device, switch RFM back to continuous receive mode
-                if (LoRaSettings.MoteClass == (byte)DEVICE_CLASS_TYPES.CLASS_C)
-                {
-                    // Switch RFM to Continuous Receive
-                    rfm95.ContinuousReceive(LoRaSettings);
-                }
-            }
-
-            // If CRC is OK, breakdown the received package
-            if (messageStatus == MESSAGE_STATUS.CRC_OK)
-            {
-                // Get MACHeader
-                message.MACHeader = RFMData[0];
-
-                // Data message
-                if (message.MACHeader == 0x40 || message.MACHeader == 0x60 || message.MACHeader == 0x80 || message.MACHeader == 0xA0)
-                {
-                    // Get device address from received data
-                    message.DevAddr[0] = RFMData[4];
-                    message.DevAddr[1] = RFMData[3];
-                    message.DevAddr[2] = RFMData[2];
-                    message.DevAddr[3] = RFMData[1];
-
-                    // Get frame control field
-                    message.FrameControl = RFMData[5];
-
-                    // Get frame counter
-                    message.FrameCounter = RFMData[7];
-                    message.FrameCounter = (message.FrameCounter << 8) + RFMData[6];
-
-                    // Lower package length with 4 to remove MIC length
-                    RFMPackage.Counter -= 4;
-
-                    // Calculate MIC
-                    aes256.CalculateMIC(TxData.Data, sessionData.NwkSKey);
-
-                    MICCheck = 0x00;
-
-                    // Compare MIC
-                    for (byte i = 0x00; i < 4; i++)
-                    {
-                        if (RFMData[RFMPackage.Counter + i] == message.MIC[i])
-                        {
-                            MICCheck++;
-                        }
-                    }
-
-                    // Check MIC
-                    if (MICCheck == 0x04)
-                    {
-                        messageStatus = MESSAGE_STATUS.MIC_OK;
-                    }
-                    else
-                    {
-                        messageStatus = MESSAGE_STATUS.WRONG_MESSAGE;
-                    }
-
-                    addressCheck = 0;
-                    // Check address
-                    if (MICCheck == 0x04)
-                    {
-                        for (byte i = 0x00; i < 4; i++)
-                        {
-                            if (sessionData.DevAddr[i] == message.DevAddr[i])
-                            {
-                                addressCheck++;
-                            }
-                        }
-                    }
-
-                    messageStatus = (addressCheck == 0x04) ? MESSAGE_STATUS.ADDRESS_OK : MESSAGE_STATUS.WRONG_MESSAGE;
-
-                    // If the address is OK, decrypt the data and send it to USB
-                    if (messageStatus == MESSAGE_STATUS.ADDRESS_OK)
-                    {
-                        dataLocation = 8;
-
-                        // Get length of frame options field
-                        frameOptionsLength = (byte)(message.FrameControl & 0x0F);
-
-                        // Add length of frame options field to data location
-                        dataLocation = (byte)(dataLocation + frameOptionsLength);
-
-                        // Check if there is data in the package
-                        if (RFMPackage.Counter == dataLocation)
-                        {
-                            RxData.Counter = 0x00;
-                        }
-                        else
-                        {
-                            // Get port field when there is data
-                            message.FramePort = RFMData[8];
-
-                            // Calculate the amount of data in the package
-                            RxData.Counter = (byte)(RFMPackage.Counter - dataLocation - 1);
-
-                            // Correct the data location by 1 for the Fport field
-                            dataLocation = (byte)(dataLocation + 1);
-                        }
-
-                        // Copy and decrypt the data
-                        if (RxData.Counter != 0x00)
-                        {
-                            for (byte i = 0; i < RxData.Counter; i++)
-                            {
-                                RxData.Data[i] = RFMData[dataLocation + i];
-                            }
-
-                            // Check frame port field. When zero, it is a MAC command message encrypted with NwkSKey
-                            // Since Decrption algorithm simplified, keep like that. Just to keep original structure.
-                            if (message.FramePort == 0x00)
-                            {
-                                aes256.Decrypt(RxData.Data, sessionData.NwkSKey, sessionData.AppSKey);
-                            }
-                            else
-                            {
-                                aes256.Decrypt(RxData.Data, sessionData.NwkSKey, sessionData.AppSKey);
-                            }
-
-                            messageStatus = MESSAGE_STATUS.MESSAGE_DONE;
-                        }
-                    }
-                }
-
-                // If the message status is wrong, set the RxData counter to 0
-                if (messageStatus == MESSAGE_STATUS.WRONG_MESSAGE)
-                {
-                    RxData.Counter = 0x00;
-                }
-            }
-        }
-
-
-        /// <summary>
         /// Sends ACK using LoRa protocol.
         /// </summary>
         void SendACK()
@@ -595,6 +422,190 @@ namespace LoRaWAN
                     // Reset channel number to 0x00 if it reaches the maximum value
                     LoRaSettings.ChannelTx = 0x00;
                 }
+            }
+        }
+
+
+        /// <summary>
+        /// Receives LoRaWAN data and processes it. 
+        /// Activates Single Receive Mode for Class-A devices and Continuous Receive Mode for Class-C devices.
+        /// </summary>
+        /// <param name="message">The received LoRaWAN message.</param>
+        void ReceiveData(sLoRaMessage message)
+        {
+            // Initialize RFM buffer for storing received data
+            byte[] RFMData = new byte[MAX_DOWNLINK_PAYLOAD_SIZE + 65];
+            sBuffer RFMPackage = new sBuffer() { Data = RFMData, Counter = 0x00 };
+
+            // Variables for storing check results and data properties
+            byte MICCheck;          // MIC check result
+            byte addressCheck;      // Address check result
+            byte frameOptionsLength;// Length of frame options field
+            byte dataLocation;      // Data location within the RFM package
+
+            // Initialize message status
+            MESSAGE_STATUS messageStatus = MESSAGE_STATUS.NO_MESSAGE;
+
+            // If it is a type A device, switch RFM to single receive mode
+            if (LoRaSettings.MoteClass == (byte)DEVICE_CLASS_TYPES.CLASS_A)
+            {
+                // Set message status to result of single receive operation
+                messageStatus = rfm95.ActivateSingleReceive(LoRaSettings);
+            }
+            else if (LoRaSettings.MoteClass == (byte)DEVICE_CLASS_TYPES.CLASS_C)
+            {
+                // Switch RFM to Continuous Receive
+                messageStatus = rfm95.ActivateContinuousReceive(LoRaSettings);
+            }
+            else
+            {
+                // For non-type A - C devices, switch RFM to standby mode
+                rfm95.SwitchMode((byte)RFM_MODES.RFM_MODE_STANDBY);
+
+                // Set message status to indicate new message reception
+                messageStatus = MESSAGE_STATUS.NO_MESSAGE;
+            }
+
+            // If there is a message received, get the data from the RFM
+            if (messageStatus == MESSAGE_STATUS.NEW_MESSAGE)
+            {
+                // Check package received through RFM95 module.
+                // Returns status of the message. MESSAGE_STATUS.WRONG_MESSAGE| MESSAGE_STATUS.CRC_OK
+                messageStatus = rfm95.CheckPackage(RFMPackage);
+            }
+            else
+            {
+                Console.WriteLine("No Message Exists!");
+                return;
+            }
+
+            // If CRC is OK, breakdown the received package
+            if (messageStatus == MESSAGE_STATUS.CRC_OK)
+            {
+                // Get MACHeader
+                message.MACHeader = RFMData[0];
+
+                // Data message
+                if (message.MACHeader == 0x40 || message.MACHeader == 0x60 || message.MACHeader == 0x80 || message.MACHeader == 0xA0)
+                {
+                    // Get device address from received data
+                    message.DevAddr[0] = RFMData[4];
+                    message.DevAddr[1] = RFMData[3];
+                    message.DevAddr[2] = RFMData[2];
+                    message.DevAddr[3] = RFMData[1];
+
+                    // Get frame control field
+                    message.FrameControl = RFMData[5];
+
+                    // Get frame counter
+                    message.FrameCounter = RFMData[7];
+                    message.FrameCounter = (message.FrameCounter << 8) + RFMData[6];
+
+                    // Lower package length with 4 to remove MIC length
+                    RFMPackage.Counter -= 4;
+
+                    // Calculate MIC
+                    aes256.CalculateMIC(TxData.Data, sessionData.NwkSKey);
+
+                    MICCheck = 0x00;
+
+                    // Compare MIC
+                    for (byte i = 0x00; i < 4; i++)
+                    {
+                        if (RFMData[RFMPackage.Counter + i] == message.MIC[i])
+                        {
+                            MICCheck++;
+                        }
+                    }
+
+                    // Check MIC
+                    if (MICCheck == 0x04)
+                    {
+                        messageStatus = MESSAGE_STATUS.MIC_OK;
+                    }
+                    else
+                    {
+                        messageStatus = MESSAGE_STATUS.WRONG_MESSAGE;
+                    }
+
+                    addressCheck = 0;
+                    // Check address
+                    if (MICCheck == 0x04)
+                    {
+                        for (byte i = 0x00; i < 4; i++)
+                        {
+                            if (sessionData.DevAddr[i] == message.DevAddr[i])
+                            {
+                                addressCheck++;
+                            }
+                        }
+                    }
+
+                    messageStatus = (addressCheck == 0x04) ? MESSAGE_STATUS.ADDRESS_OK : MESSAGE_STATUS.WRONG_MESSAGE;
+
+                    // If the address is OK, decrypt the data.
+                    if (messageStatus == MESSAGE_STATUS.ADDRESS_OK)
+                    {
+                        dataLocation = 8;
+
+                        // Get length of frame options field
+                        frameOptionsLength = (byte)(message.FrameControl & 0x0F);
+
+                        // Add length of frame options field to data location
+                        dataLocation = (byte)(dataLocation + frameOptionsLength);
+
+                        // Check if there is data in the package
+                        if (RFMPackage.Counter == dataLocation)
+                        {
+                            RxData.Counter = 0x00;
+                        }
+                        else
+                        {
+                            // Get port field when there is data
+                            message.FramePort = RFMData[8];
+
+                            // Calculate the amount of data in the package
+                            RxData.Counter = (byte)(RFMPackage.Counter - dataLocation - 1);
+
+                            // Correct the data location by 1 for the Fport field
+                            dataLocation = (byte)(dataLocation + 1);
+                        }
+
+                        // Copy and decrypt the data
+                        if (RxData.Counter != 0x00)
+                        {
+                            for (byte i = 0; i < RxData.Counter; i++)
+                            {
+                                RxData.Data[i] = RFMData[dataLocation + i];
+                            }
+
+                            // Check frame port field. When zero, it is a MAC command message encrypted with NwkSKey
+                            // Since Decrption algorithm simplified, keep like that. Just to keep original structure.
+                            if (message.FramePort == 0x00)
+                            {
+                                aes256.Decrypt(RxData.Data, sessionData.NwkSKey, sessionData.AppSKey);
+                            }
+                            else
+                            {
+                                aes256.Decrypt(RxData.Data, sessionData.NwkSKey, sessionData.AppSKey);
+                            }
+
+                            messageStatus = MESSAGE_STATUS.MESSAGE_DONE;
+                        }
+                    }
+                    // If the message status is wrong, set the RxData counter to 0
+                    if (messageStatus == MESSAGE_STATUS.WRONG_MESSAGE)
+                    {
+                        RxData.Counter = 0x00;
+                        Console.WriteLine("Device Address is Wrong! Wrong Message Received!");
+                    }
+                }
+            }
+            // If Cyclic Redundancy Check of the message fails
+            else if (messageStatus == MESSAGE_STATUS.WRONG_MESSAGE)
+            {
+                RxData.Counter = 0x00;
+                Console.WriteLine("CRC Failed! Wrong Message Received!");
             }
         }
 
