@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace LoRaWAN
 {
-    public class Gateway
+    public class EndDevice
     {
         private TcpClient client;
         private SslStream sslStream;
@@ -20,11 +20,11 @@ namespace LoRaWAN
 
 
         /// <summary>
-        /// Initializes a new instance of the Gateway class with SSL certificate and password.
+        /// Initializes a new instance of the EndDevice class with SSL certificate and password.
         /// </summary>
         /// <param name="sslCertificate">The path to the SSL certificate file.</param>
         /// <param name="sslPassword">The password for the SSL certificate.</param>
-        public Gateway(string sslCertificate, string sslPassword)
+        public EndDevice(string sslCertificate, string sslPassword)
         {
             // Assign the provided SSL certificate path and password to the corresponding properties
             this.sslCertificate = sslCertificate;
@@ -53,7 +53,7 @@ namespace LoRaWAN
         /// <param name="ipAddress">The IP address of the server.</param>
         /// <param name="port">The port number to connect to on the server.</param>
         /// <returns>True if connection succeeds, otherwise false.</returns>
-        private bool ConnectToServer(string ipAddress, int port)
+        public bool ConnectToServer(string ipAddress, int port)
         {
             try
             {
@@ -96,7 +96,7 @@ namespace LoRaWAN
         /// </summary>
         /// <param name="message">The message to send.</param>
         /// <returns>True if message sent successfully, otherwise false.</returns>
-        private bool SendMessage(string message)
+        public bool SendMessage(string message)
         {
             try
             {
@@ -129,7 +129,7 @@ namespace LoRaWAN
         /// Receives a response from the server.
         /// </summary>
         /// <returns>The received response as a string.</returns>
-        private string ReceiveResponse()
+        public string ReceiveResponse()
         {
             try
             {
@@ -183,7 +183,7 @@ namespace LoRaWAN
         /// <summary>
         /// Disconnects from the server.
         /// </summary>
-        private void DisconnectFromServer()
+        public void DisconnectFromServer()
         {
             try
             {
