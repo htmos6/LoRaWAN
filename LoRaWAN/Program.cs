@@ -28,7 +28,7 @@ namespace LoRaWAN
             {
                 NwkSKey = key,                                     // Network session key
                 AppSKey = iv,                                      // Application session key
-                DevAddr = new byte[4] { 0x00, 0x00, 0x00, 0x00 }   // Device address
+                DevAddr = new byte[4] { 0x7F, 0x00, 0x00, 0x01 }   // Device address 127.0.0.1
             };
 
             /// <summary>
@@ -40,6 +40,7 @@ namespace LoRaWAN
             /// </remarks>
             sSettings LoRaSettings = new sSettings()
             {
+                Mport = 123,
                 MoteClass = 0x00,           // Device class: 0x00 for Type A, 0x01 for Type C
                 DatarateRx = 0x03,          // RX data rate: SF9 BW 125 kHz
                 ChannelRx = 0x08,           // RX channel: Receiver Channel
@@ -96,7 +97,7 @@ namespace LoRaWAN
 
 
             // Convert the input string to byte array using UTF-8 encoding
-            byte[] input = Encoding.UTF8.GetBytes("Hello World!");
+            byte[] input = Encoding.UTF8.GetBytes("Hello World!<EOF>");
 
             var crypto = new AesCryptographyService();
 

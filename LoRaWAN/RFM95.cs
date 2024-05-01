@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
+using System.Net;
 using System.Reflection.Emit;
 using System.Runtime.ConstrainedExecution;
 using System.Runtime.Remoting.Channels;
@@ -174,6 +175,9 @@ namespace LoRaWAN
     /// </summary>
     public class RFM95
     {
+        private readonly string sslCertificate = "C:\\Users\\Legion\\projects\\LoRaWAN-Server\\LoRaWAN.pfx";
+        private readonly string sslPassword = "sTrongPassW1";
+
         /// <summary> The RFM95 class contains methods that exclusively modify RFMRegisters.</summary>
         public static byte[] RFMRegisters { get; set; } = new byte[256];
 
@@ -267,6 +271,49 @@ namespace LoRaWAN
         #endregion
 
 
+        #region GET
+        /// <summary>
+        /// Get data from the specified address through TCP/IP for simplicity.
+        /// </summary>
+        /// <param name="address">Register address to read from.</param>
+        /// <returns>Data read from the register.</returns>
+        public byte GET(byte address)
+        {
+            byte data = 0x00;
+
+            // Create client to connect gateway
+
+            // Connect with TCP/IP to gateway.
+            // Provide IP and port numbers to TCP/IP connection.
+
+            // Read/Receive data from the gateway.
+            // Assign it to data
+
+            // Disconnect from gateway.
+
+            // Return received data
+            return data;
+        }
+        #endregion
+
+
+        #region POST
+        public void POST(sBuffer RFMTxPackage, sSettings LoRaSettings)
+        {
+            EndDevice LoRaEndDevice = new EndDevice(sslCertificate, sslPassword);
+
+            string ipAddress = $"{(int)RFMTxPackage.Data[4]}.{(int)RFMTxPackage.Data[3]}.{(int)RFMTxPackage.Data[2]}.{(int)RFMTxPackage.Data[1]}";
+            int port = LoRaSettings.Mport;
+
+            // ....... MIC0, MIC1, MIC2, MIC3, (emptyLastOfFirstId)
+            int emptyLastOfFirstId = RFMTxPackage.Counter;
+            string message = BitConverter.ToString(RFMTxPackage.Data.Skip(9).Take(emptyLastOfFirstId - 4 - 8 - 1).ToArray()) + "<EOF>";
+
+            LoRaEndDevice.SendFramesToServer(ipAddress, port, message);
+        }
+        #endregion
+
+
         #region SendPackage
         /// <summary>
         /// Sends a package using Radio Frequency Module (RFM).
@@ -275,7 +322,7 @@ namespace LoRaWAN
         /// <param name="LoRaSettings">The LoRa settings to apply for transmission.</param>
         public void SendPackage(sBuffer RFMTxPackage, sSettings LoRaSettings)
         {
-            Console.WriteLine($"\n\n\n************ RFM95 Send Package Updates ************");
+            Console.WriteLine($"\n\n\n************ RFM95 Send Package Updates ************\n");
             Console.WriteLine($"RFM95 (Mode|Data Rate|Channel) Adjusted!\n");
 
             // Variable to hold the location of Tx part in First In, First Out (FiFo) buffer
@@ -318,8 +365,7 @@ namespace LoRaWAN
             // Wait for TxDone signal
             Thread.Sleep(2000);
 
-            // POST()
-
+            POST(RFMTxPackage, LoRaSettings);
 
             // Clear interrupt flag
             RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_IRQ_FLAGS, 0x08);
@@ -390,13 +436,13 @@ namespace LoRaWAN
         #endregion
 
 
-        #region ActivateSingleReceive
+        #region GetPacketBySingleReceive
         /// <summary>
         /// Configures the RFM95 module for single reception mode and waits for a message.
         /// </summary>
         /// <param name="LoRaSettings">The LoRaWAN settings for reception.</param>
         /// <returns>The status of the reception operation.</returns>
-        public MESSAGE_STATUS ActivateSingleReceive(sSettings LoRaSettings)
+        public MESSAGE_STATUS GetPacketBySingleReceive(sSettings LoRaSettings)
         {
             // Change DIO 0 back to RxDone
             RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_DIO_MAPPING1, 0x00);
@@ -440,12 +486,12 @@ namespace LoRaWAN
         #endregion
 
 
-        #region ActivateContinuousReceive
+        #region GetPacketByContinuousReceive
         /// <summary>
         /// Configures the RFM95 module for continuous reception mode.
         /// </summary>
         /// <param name="LoRaSettings">The LoRaWAN settings for reception.</param>
-        public MESSAGE_STATUS ActivateContinuousReceive(sSettings LoRaSettings)
+        public MESSAGE_STATUS GetPacketByContinuousReceive(sSettings LoRaSettings)
         {
             // Change DIO 0 back to RxDone and DIO 1 to rx timeout
             RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_DIO_MAPPING1, 0x00);
@@ -607,52 +653,6 @@ namespace LoRaWAN
         public byte GetRSSI()
         {
             return RFMRegisters.Read((byte)RFM_REGISTERS.RFM_REG_LAST_RSSI);
-        }
-        #endregion
-
-
-        #region GET
-        /// <summary>
-        /// Get data from the specified address through TCP/IP for simplicity.
-        /// </summary>
-        /// <param name="address">Register address to read from.</param>
-        /// <returns>Data read from the register.</returns>
-        public byte GET(byte address)
-        {
-            byte data = 0x00;
-
-            // Create client to connect gateway
-
-            // Connect with TCP/IP to gateway.
-            // Provide IP and port numbers to TCP/IP connection.
-
-            // Read/Receive data from the gateway.
-            // Assign it to data
-
-            // Disconnect from gateway.
-
-            // Return received data
-            return data;
-        }
-        #endregion
-
-
-        #region POST
-        /// <summary>
-        /// POST data to the specified address through TCP/IP for simplicity.
-        /// </summary>
-        /// <param name="address">Register address to write to.</param>
-        /// <param name="data">Data to write to the register.</param>
-        public void POST(byte address, byte data)
-        {
-            // Create a client to connect to the gateway.
-
-            // Establish a TCP/IP connection to the gateway.
-            // Specify the IP address and port numbers for the TCP/IP connection.
-
-            // Send data to the gateway.
-
-            // Disconnect from the gateway.
         }
         #endregion
 
