@@ -450,12 +450,12 @@ namespace LoRaWAN
             if (LoRaSettings.MoteClass == (byte)DEVICE_CLASS_TYPES.CLASS_A)
             {
                 // Set message status to result of single receive operation
-                messageStatus = rfm95.ActivateSingleReceive(LoRaSettings);
+                messageStatus = rfm95.GetPacketBySingleReceive(LoRaSettings);
             }
             else if (LoRaSettings.MoteClass == (byte)DEVICE_CLASS_TYPES.CLASS_C)
             {
                 // Switch RFM to Continuous Receive
-                messageStatus = rfm95.ActivateContinuousReceive(LoRaSettings);
+                messageStatus = rfm95.GetPacketByContinuousReceive(LoRaSettings);
             }
             else
             {
@@ -829,11 +829,6 @@ namespace LoRaWAN
         /// <param name="previousTime">The previous time recorded.</param>
         /// <param name="ReceiveDelayX">The delay before the RX window starts in milliseconds.</param>
         /// <param name="RXXWindow">The duration of the RX window in milliseconds.</param>
-        /// <param name="RxData">The buffer to store received data.</param>
-        /// <param name="sessionData">The LoRa session data.</param>
-        /// <param name="OTAAData">The OTAA data.</param>
-        /// <param name="RxMessage">The received LoRa message.</param>
-        /// <param name="LoRaSettings">The LoRa settings to be used during reception.</param>
         private void WaitForRXXWindow(Stopwatch stopwatch, long previousTime, long ReceiveDelayX, long RXXWindow)
         {
             // Wait until the total time elapsed exceeds the sum of ReceiveDelayX and RXXWindow

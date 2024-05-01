@@ -45,7 +45,7 @@
   <ItemGroup>
     <Compile Include="AES256.cs" />
     <Compile Include="Extension.cs" />
-    <Compile Include="Gateway.cs" />
+    <Compile Include="EndDevice.cs" />
     <Compile Include="LoRaWAN.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
