@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Net.Security;
 using System.Net.Sockets;
@@ -67,7 +68,7 @@ namespace LoRaWAN
                 NetworkStream stream = client.GetStream();
 
                 // Print a message indicating successful connection along with the server's endpoint
-                Console.WriteLine("Connected to server " + client.Client.RemoteEndPoint);
+                Console.WriteLine("\t- Connected to server " + client.Client.RemoteEndPoint);
 
                 // Wrap the stream with SSL/TLS encryption
                 sslStream = new SslStream(stream, false, new RemoteCertificateValidationCallback(CertificateValidationCallback));
@@ -76,7 +77,7 @@ namespace LoRaWAN
                 sslStream.AuthenticateAsClient(ipAddress, new X509Certificate2Collection(new X509Certificate2(sslCertificate, sslPassword)), SslProtocols.Tls, true);
 
                 // Print message indicating successful SSL/TLS handshake
-                Console.WriteLine("SSL/TLS handshake completed.");
+                Console.WriteLine("\t- SSL/TLS handshake completed.");
 
                 // Return true to indicate successful connection
                 return true;
@@ -84,8 +85,8 @@ namespace LoRaWAN
             catch (Exception ex)
             {
                 // Print an error message if connection attempt fails and return false
-                Console.WriteLine("Error connecting to server: " + ex.Message);
-                Console.ReadKey();
+                Console.WriteLine("\t- Error connecting to server: " + ex.Message);
+
                 return false;
             }
         }
@@ -110,7 +111,7 @@ namespace LoRaWAN
                 sslStream.Flush();
 
                 // Print a message indicating successful sending of the message
-                Console.WriteLine("Sent message: " + message);
+                Console.WriteLine("\t- Sent message: " + message);
 
                 // Return true to indicate successful message transmission
                 return true;
@@ -118,7 +119,7 @@ namespace LoRaWAN
             catch (Exception ex)
             {
                 // Print an error message if sending the message fails and return false
-                Console.WriteLine("Error sending message: " + ex.Message);
+                Console.WriteLine("\t- Error sending message: " + ex.Message);
 
                 return false;
             }
@@ -165,7 +166,7 @@ namespace LoRaWAN
                 } while (bytesRead != 0); // Continue looping until no more data is read
 
                 // Print received response
-                Console.WriteLine("Received response: " + messageData.ToString());
+                Console.WriteLine("\t- Received response: " + messageData.ToString());
 
                 // Return received response
                 return messageData.ToString();
@@ -173,7 +174,7 @@ namespace LoRaWAN
             catch (Exception ex)
             {
                 // Print an error message if receiving the response fails and return null
-                Console.WriteLine("Error receiving response: " + ex.Message);
+                Console.WriteLine("\t- Error receiving response: " + ex.Message);
 
                 return null;
             }
@@ -194,12 +195,12 @@ namespace LoRaWAN
                 client.Close();
 
                 // Print a message indicating successful disconnection
-                Console.WriteLine("Disconnected from server.");
+                Console.WriteLine("\t- Disconnected from server.");
             }
             catch (Exception ex)
             {
                 // Print an error message if disconnection fails
-                Console.WriteLine("Error disconnecting from server: " + ex.Message);
+                Console.WriteLine("\t-Error disconnecting from server: " + ex.Message);
             }
         }
 
@@ -212,20 +213,36 @@ namespace LoRaWAN
         /// <param name="message">The message to send to the server.</param>
         public void SendFramesToServer(string ipAddress, int port, string message)
         {
-            // Connect to the server
-            if (this.ConnectToServer(ipAddress, port))
-            {
-                // Send the message to the server
-                if (this.SendMessage(message))
-                {
-                    // Receive the response from the server
-                    _ = this.ReceiveResponse();
-                }
+            Console.WriteLine($"\n\n\n\t************ EndDevice Network Session Start ************\n");
 
-                Console.ReadKey();
-                // Disconnect from the server
-                DisconnectFromServer();
+            Stopwatch stopwatch = new Stopwatch();
+            stopwatch.Start();
+
+            while (stopwatch.ElapsedMilliseconds < 5000)
+            {
+                // Connect to the server
+                if (this.ConnectToServer(ipAddress, port))
+                {
+                    // Send the message to the server
+                    if (this.SendMessage(message))
+                    {
+                        // Receive the response from the server
+                        _ = this.ReceiveResponse();
+                    }
+
+                    // Disconnect from the server
+                    DisconnectFromServer();
+
+                    Console.WriteLine($"\n\t************ EndDevice Network Session End ************\n\n\n");
+
+                    return;
+                }
             }
+
+            stopwatch.Stop();
+
+            Console.WriteLine("\t- EndDevice could not Established a Connection with Gateway!\nConnection Timeout!");
+            Console.WriteLine($"\n\t************ EndDevice Network Session End ************\n\n");
         }
 
     }
