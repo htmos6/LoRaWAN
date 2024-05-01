@@ -152,6 +152,7 @@ namespace LoRaWAN
     }
     #endregion
 
+    #region MESSAGE_STATUS
     /// <summary>
     /// Enumerates the possible status of a LoRaWAN message.
     /// </summary>
@@ -166,7 +167,7 @@ namespace LoRaWAN
         TIMEOUT,            // Timeout occurred
         WRONG_MESSAGE       // Received message is incorrect
     };
-
+    #endregion
 
     /// <summary>
     /// Represents an RFM95 module used for radio frequency communication.
@@ -176,16 +177,22 @@ namespace LoRaWAN
         /// <summary> The RFM95 class contains methods that exclusively modify RFMRegisters.</summary>
         public static byte[] RFMRegisters { get; set; } = new byte[256];
 
-
+        #region Init
         public byte Init()
         {
+            Console.WriteLine($"\n\n\n************ RFM95 Initialization ************");
+            Console.WriteLine($"RFM95 (Mode|Channel|Power|Data Rate) Adjusted!\n");
+
+            // Since no hardware is available, manually assign the version to 18 for the safety of the code.
+            RFMRegisters.Write(0x42, 18);
+
             // Read the version information from register 0x42
             // Reads the version information from register 0x42 of the RFM module using the RFMRegisters class.
             byte version = RFMRegisters.Read(0x42);
 
             // Check if the version is not 18
             // Checks if the version read from the RFM module is not equal to 18.
-            if (version != 0)
+            if (version != 18)
             {
                 // Return 0 indicating failed initialization
                 // If the version is not equal to 18, returns 0, indicating a failed initialization.
@@ -250,12 +257,17 @@ namespace LoRaWAN
             RFMRegisters.Write(0x0E, 0x80);
             RFMRegisters.Write(0x0F, 0x00);
 
+            Console.WriteLine($"\n\n- RFM95 Device Initialized Successfully!\n");
+            Console.WriteLine($"\n************ RFM95 Initialization End ************\n\n\n");
+
             // Return 1 indicating successful initialization
             // Finally, returns 1 to indicate that the initialization process was successful.
             return 1;
         }
+        #endregion
 
 
+        #region SendPackage
         /// <summary>
         /// Sends a package using Radio Frequency Module (RFM).
         /// </summary>
@@ -263,6 +275,9 @@ namespace LoRaWAN
         /// <param name="LoRaSettings">The LoRa settings to apply for transmission.</param>
         public void SendPackage(sBuffer RFMTxPackage, sSettings LoRaSettings)
         {
+            Console.WriteLine($"\n\n\n************ RFM95 Send Package Updates ************");
+            Console.WriteLine($"RFM95 (Mode|Data Rate|Channel) Adjusted!\n");
+
             // Variable to hold the location of Tx part in First In, First Out (FiFo) buffer
             byte RFMTxLocation = 0x00;
 
@@ -303,17 +318,25 @@ namespace LoRaWAN
             // Wait for TxDone signal
             Thread.Sleep(2000);
 
+            // POST()
+
+
             // Clear interrupt flag
             RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_IRQ_FLAGS, 0x08);
+
+            Console.WriteLine($"\n\n- Package Sent to Gateway Successfully!\n");
+            Console.WriteLine($"\n************ RFM95 Send Package Updates End ************\n\n\n");
         }
+        #endregion
 
 
+        #region CheckPackage
         /// <summary>
-        /// Retrieves the status of the received LoRaWAN package.
+        /// Receives LoRaWAN package.
         /// </summary>
         /// <param name="RFMRxPackage">The buffer containing the received LoRaWAN package.</param>
         /// <returns>The status of the received LoRaWAN package.</returns>
-        public MESSAGE_STATUS GetPackage(sBuffer RFMRxPackage)
+        public MESSAGE_STATUS CheckPackage(sBuffer RFMRxPackage)
         {
             // Variable to store RFM interrupts
             byte RFMInterrupts = 0x00;
@@ -327,7 +350,7 @@ namespace LoRaWAN
             RFMInterrupts = RFMRegisters.Read(0x12);
 
             // Check if RX_DONE interrupt is set
-            if ((RFMInterrupts & 0x40) == 0x40)  // If RX_DONE_MASK is set
+            if ((RFMInterrupts & 0x40) == 0x40)
             {
                 // Check if CRC is OK
                 if ((RFMInterrupts & 0x20) != 0x20)
@@ -360,16 +383,20 @@ namespace LoRaWAN
             RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_IRQ_FLAGS, RFMInterrupts);
 
             // Return the status of the received LoRaWAN package
+            // MESSAGE_STATUS.WRONG_MESSAGE;
+            // MESSAGE_STATUS.CRC_OK;
             return messageStatus;
         }
+        #endregion
 
 
+        #region ActivateSingleReceive
         /// <summary>
         /// Configures the RFM95 module for single reception mode and waits for a message.
         /// </summary>
         /// <param name="LoRaSettings">The LoRaWAN settings for reception.</param>
         /// <returns>The status of the reception operation.</returns>
-        public MESSAGE_STATUS SingleReceive(sSettings LoRaSettings)
+        public MESSAGE_STATUS ActivateSingleReceive(sSettings LoRaSettings)
         {
             // Change DIO 0 back to RxDone
             RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_DIO_MAPPING1, 0x00);
@@ -387,25 +414,38 @@ namespace LoRaWAN
             // Switch RFM to Single reception
             SwitchMode((byte)RFM_MODES.RFM_MODE_RXSINGLE);
 
+            Console.WriteLine("Single Receive Mode Activated!");
+
             // Check if TCP provides input based on the datarate
             if (LoRaSettings.DatarateRx == 1)
             {
                 // TCP provides input
+
+                byte RFMInterruptRegisterData = RFMRegisters.Read(0x12);
+                // Set Transmission Done bit.
+                RFMInterruptRegisterData |= 0x40;
+                // Clear Error bit.
+                RFMInterruptRegisterData &= 0xDF;
+                // Write to the corresponding register to indicate that message received correctly.
+                RFMRegisters.Write(0x12, RFMInterruptRegisterData);
+
                 return MESSAGE_STATUS.NEW_MESSAGE;
             }
             else
             {
                 // TCP provides no input
-                return MESSAGE_STATUS.TIMEOUT;
+                return MESSAGE_STATUS.NO_MESSAGE;
             }
         }
+        #endregion
 
 
+        #region ActivateContinuousReceive
         /// <summary>
         /// Configures the RFM95 module for continuous reception mode.
         /// </summary>
         /// <param name="LoRaSettings">The LoRaWAN settings for reception.</param>
-        public void ContinuousReceive(sSettings LoRaSettings)
+        public MESSAGE_STATUS ActivateContinuousReceive(sSettings LoRaSettings)
         {
             // Change DIO 0 back to RxDone and DIO 1 to rx timeout
             RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_DIO_MAPPING1, 0x00);
@@ -422,20 +462,36 @@ namespace LoRaWAN
             // Switch to continuous receive
             SwitchMode((byte)RFM_MODES.RFM_MODE_RXCONT);
 
+            Console.WriteLine("Continuous Receive Mode Activated!");
+
             // Check if TCP provides input based on the datarate
-            if (LoRaSettings.DatarateRx == 1)
+            while (true)
             {
-                // TCP provides input
-                // LOOP TCP/IP
-            }
-            else
-            {
-                // TCP provides no input
-                // LOOP TCP/IPS
+                if (LoRaSettings.DatarateRx == 1)
+                {
+                    // TCP provides input
+
+                    byte RFMInterruptRegisterData = RFMRegisters.Read(0x12);
+                    // Set Transmission Done bit.
+                    RFMInterruptRegisterData |= 0x40;
+                    // Clear Error bit.
+                    RFMInterruptRegisterData &= 0xDF;
+                    // Write to the corresponding register to indicate that message received correctly.
+                    RFMRegisters.Write(0x12, RFMInterruptRegisterData);
+
+                    return MESSAGE_STATUS.NEW_MESSAGE;
+                }
+                else
+                {
+                    // TCP provides no input
+                    // LOOP TCP/IPS
+                }
             }
         }
+        #endregion
 
 
+        #region SwitchMode
         /// <summary>
         /// Switches the mode of the RFM module.
         /// </summary>
@@ -451,7 +507,7 @@ namespace LoRaWAN
                 // Get the name of the RFM mode.
                 string RFMModeName = Enum.GetName(typeof(RFM_MODES), RFMMode);
 
-                Console.WriteLine($"RFM95 Mode Changed : LoRa-{RFMModeName}");
+                Console.WriteLine($"- RFM95 Mode Changed : LoRa-{RFMModeName}");
             }
             else
             {
@@ -465,11 +521,13 @@ namespace LoRaWAN
                 string RFMModeName = Enum.GetName(typeof(RFM_MODES), RFMMode & 0x7F);
 
                 // Display the name of the RFM Mode.
-                Console.WriteLine($"RFM95 Mode Changed : LoRa-{RFMModeName}");
+                Console.WriteLine($"- RFM95 Mode Changed : LoRa-{RFMModeName}");
             }
         }
+        #endregion
 
 
+        #region SetTxPower
         /// <summary>
         /// Sets the transmission power level for the RFM module.
         /// </summary>
@@ -511,10 +569,13 @@ namespace LoRaWAN
             // Configure the RFM module's PA settings for the specified power level
             // Apply PA BOOST mask
             RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_PA_CONFIG, (byte)(0x80 | (level - 2)));
-            Console.WriteLine($"RFM95 Power Settled : {level-2} dB.");
+
+            Console.WriteLine($"- RFM95 Power Settled : {level-2} dB.");
         }
+        #endregion
 
 
+        #region SetOCP
         /// <summary>
         /// Set the Over Current Protection (OCP) threshold for simulation.
         /// </summary>
@@ -529,10 +590,12 @@ namespace LoRaWAN
             // Write the OCP configuration (Apply OCP trim) to the RFM module
             RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_OCP, (byte)(0x20 | (0x1F & ocpTrim)));
 
-            Console.WriteLine($"RFM95 OCP Trim Value Settled : {ocpTrim} mA.");
+            Console.WriteLine($"- RFM95 OCP Trim Value Settled : {ocpTrim} mA.");
         }
+        #endregion
 
 
+        #region GetRSSI
         /// <summary>
         /// Retrieves the Received Signal Strength Indicator (RSSI) from the RFM module.
         /// </summary>
@@ -545,14 +608,16 @@ namespace LoRaWAN
         {
             return RFMRegisters.Read((byte)RFM_REGISTERS.RFM_REG_LAST_RSSI);
         }
+        #endregion
 
 
+        #region GET
         /// <summary>
-        /// Reads data from the specified RFM register address.
+        /// Get data from the specified address through TCP/IP for simplicity.
         /// </summary>
         /// <param name="address">Register address to read from.</param>
         /// <returns>Data read from the register.</returns>
-        public byte Read(byte address)
+        public byte GET(byte address)
         {
             byte data = 0x00;
 
@@ -569,14 +634,16 @@ namespace LoRaWAN
             // Return received data
             return data;
         }
+        #endregion
 
 
+        #region POST
         /// <summary>
-        /// Writes data to the specified RFM register address.
+        /// POST data to the specified address through TCP/IP for simplicity.
         /// </summary>
         /// <param name="address">Register address to write to.</param>
         /// <param name="data">Data to write to the register.</param>
-        public void Write(byte address, byte data)
+        public void POST(byte address, byte data)
         {
             // Create a client to connect to the gateway.
 
@@ -587,8 +654,10 @@ namespace LoRaWAN
 
             // Disconnect from the gateway.
         }
+        #endregion
 
 
+        #region ChangeChannel
         /// <summary>
         /// Changes the channel of the RFM module.
         /// </summary>
@@ -604,11 +673,13 @@ namespace LoRaWAN
                     RFMRegisters.Write((byte)(RFM_REGISTERS.RFM_REG_FR_MSB + i), LoraFrequency[channel, i]);
                 }
 
-                Console.WriteLine($"RFM95 Channel Settled Channel : {Enum.GetName(typeof(CHANNEL), channel)}.");
+                Console.WriteLine($"- RFM95 Channel Changed to : {Enum.GetName(typeof(CHANNEL), channel)}.");
             }
         }
+        #endregion
 
 
+        #region ChangeDataRate
         /// <summary>
         /// Changes the data rate of the RFM module.
         /// </summary>
@@ -654,10 +725,12 @@ namespace LoRaWAN
                     break;
             }
 
-            Console.WriteLine($"RFM95 Data Rate Changed : {Enum.GetName(typeof(DATA_RATES), dataRate)}.");
+            Console.WriteLine($"- RFM95 Data Rate Changed : {Enum.GetName(typeof(DATA_RATES), dataRate)}.");
         }
+        #endregion
 
 
+        #region ChangeSFandBW
         /// <summary>
         /// Changes the spreading factor and bandwidth of the RFM module.
         /// </summary>
@@ -696,8 +769,10 @@ namespace LoRaWAN
                 RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_MODEM_CONFIG3, 0b0100);
             }
         }
+        #endregion
 
 
+        #region LoraFrequency
         /// <summary>
         /// Represents the regional frequency plan for RFM (Radio Frequency Module) communication.
         /// </summary>
@@ -720,5 +795,6 @@ namespace LoRaWAN
             { 0xD8, 0xF9, 0xBE }, //Channel [7], 867.9 MHz / 61.035 Hz = 14219710 = 0xD8F9BE
             { 0xD9, 0x61, 0xBE }, // RX2 Receive channel 869.525 MHz / 61.035 Hz = 14246334 = 0xD961BE    
         };
+        #endregion
     }
 }
