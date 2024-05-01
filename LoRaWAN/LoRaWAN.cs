@@ -605,6 +605,8 @@ namespace LoRaWAN
         /// <param name="level">The desired transmit power level.</param>
         public void SetTxPower(int level)
         {
+            LoRaSettings.TransmitPower = (byte)((level > 0x0F) ? 0x0F : level);
+
             // Delegate the setting of transmit power to the RFM95 module.
             rfm95.SetTxPower(level);
         }

@@ -179,13 +179,76 @@ namespace LoRaWAN
 
         public MESSAGE_STATUS SingleReceive(sSettings LoRaSettings)
         {
-            return MESSAGE_STATUS.NO_MESSAGE;
+            /*
+            if (true)
+            {
+                // TCP provides input                
+                return MESSAGE_STATUS.NEW_MESSAGE;
+            }
+            else
+            {
+                // TCP provides no input                
+                return MESSAGE_STATUS.NO_MESSAGE;
+            }
+            */
+
+            MESSAGE_STATUS messageStatus = MESSAGE_STATUS.NO_MESSAGE;
+
+            //Change DIO 0 back to RxDone
+            RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_DIO_MAPPING1, 0x00);
+
+            //Invert IQ Back
+            RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_INVERT_IQ, 0x67);
+            RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_INVERT_IQ2, 0x19);
+
+            //Change Datarate
+            ChangeDataRate(LoRaSettings.DatarateRx);
+
+            //Change Channel
+            ChangeChannel(LoRaSettings.ChannelRx);
+
+            //Switch RFM to Single reception
+            SwitchMode((byte)RFM_MODES.RFM_MODE_RXSINGLE);
+
+            if (LoRaSettings.DatarateRx == 1)
+            {
+                // TCP provides input                
+                return MESSAGE_STATUS.NEW_MESSAGE;
+            }
+            else
+            {
+                // TCP provides no input                
+                return MESSAGE_STATUS.TIMEOUT;
+            }
         }
 
         public void ContinuousReceive(sSettings LoRaSettings)
         {
+            //Change DIO 0 back to RxDone and DIO 1 to rx timeout
+            RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_DIO_MAPPING1, 0x00);
 
-            ;
+            //Invert IQ Back
+            RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_INVERT_IQ, 0x67);
+            RFMRegisters.Write((byte)RFM_REGISTERS.RFM_REG_INVERT_IQ2, 0x19);
+
+            // Change Datarate and channel.
+            // This depends on regional parameters
+            ChangeDataRate((byte)DATA_RATES.SF12BW125);
+            ChangeChannel((byte)CHANNEL.CHRX2);
+
+            //Switch to continuous receive
+            SwitchMode((byte)RFM_MODES.RFM_MODE_RXCONT);
+
+            if (LoRaSettings.DatarateRx == 1)
+            {
+                // TCP provides input                
+                // LOOP TCP/IP
+            }
+            else
+            {
+                // TCP provides no input                
+                // LOOP TCP/IPS
+            }
         }
 
 
@@ -423,14 +486,7 @@ namespace LoRaWAN
         public void SetTxPower(int level)
         {
             // Ensure that the power level is within the acceptable range (0 to 20)
-            if (level < 0)
-            {
-                level = 0;
-            }
-            else if (level > 20)
-            {
-                level = 20;
-            }
+            level = (level < 0) ? 0 : ((level > 20) ? 20 : level);
 
             // Configure the RFM module's PA settings based on the specified power level
             if (level > 17)
